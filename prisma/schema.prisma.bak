@@ -1,0 +1,13 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+enum Role { ADMIN_NATIONAL CHEF_SERVICE CHEF_DIVISION DIRECTEUR_REGIONAL DIRECTION_CENTRALE }
+enum Kind { PROVINCIAL FRONTALIER }
+enum Status { BROUILLON SOUMIS REVOQUE CORRIGE VALIDE }
+model Region { id String @id @default(cuid()) name String @unique divisions Division[] users User[] }
+model Division { id String @id @default(cuid()) name String regionId String @unique region Region @relation(fields:[regionId],references:[id]) services Service[] users User[] }
+model Service { id String @id @default(cuid()) name String kind Kind divisionId String division Division @relation(fields:[divisionId],references:[id]) users User[] reports Report[] rights RubricRight[] @@unique([divisionId,name]) }
+model User { id String @id @default(cuid()) name String firstName String email String @unique phone String? role Role passwordHash String verified Boolean @default(false) regionId String? region Region? @relation(fields:[regionId],references:[id]) divisionId String? division Division? @relation(fields:[divisionId],references:[id]) serviceId String? service Service? @relation(fields:[serviceId],references:[id]) active Boolean @default(true) otps Otp[] events Event[] createdAt DateTime @default(now()) }
+model RubricRight { serviceId String rubricId String enabled Boolean @default(true) service Service @relation(fields:[serviceId],references:[id],onDelete:Cascade) @@id([serviceId,rubricId]) }
+model Report { id String @id @default(cuid()) serviceId String service Service @relation(fields:[serviceId],references:[id]) year Int month Int status Status @default(BROUILLON) data Json @default("{}") reason String? createdAt DateTime @default(now()) updatedAt DateTime @updatedAt events Event[] @@unique([serviceId,year,month]) }
+model Event { id String @id @default(cuid()) userId String user User @relation(fields:[userId],references:[id]) reportId String? report Report? @relation(fields:[reportId],references:[id]) action String oldStatus Status? newStatus Status? reason String? createdAt DateTime @default(now()) }
+model Otp { id String @id @default(cuid()) userId String user User @relation(fields:[userId],references:[id]) hash String purpose String expiresAt DateTime consumed Boolean @default(false) createdAt DateTime @default(now()) }
