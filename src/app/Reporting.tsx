@@ -1,13 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
-import {
-  Activity,
-  CalendarDays,
-  Download,
-  Layers3,
-  MapPin,
-} from 'lucide-react';
+import { Activity, CalendarDays, Download } from 'lucide-react';
 import {
   format,
   months,
@@ -18,6 +12,8 @@ import {
 } from '@/lib/analytics';
 import ReportShare from './ReportShare';
 import ReportEmail from './ReportEmail';
+import ReportingOverview from './ReportingOverview';
+import RubricIcon from './RubricIcon';
 
 const palette = [
   '#027e77',
@@ -300,13 +296,6 @@ export default function Reporting({
     values.includes(id)
       ? values.filter((item) => item !== id)
       : [...values, id];
-  const total =
-    analysis?.results.reduce((sum, group) => sum + group.current.count, 0) ?? 0;
-  const expected =
-    analysis?.results.reduce(
-      (sum, group) => sum + group.services * (filters.mode === 'year' ? 12 : 1),
-      0,
-    ) ?? 0;
   return (
     <section className="space-y-5">
       <div className="rounded-2xl bg-navy text-white px-5 py-6 md:px-8 flex flex-wrap items-start justify-between gap-4">
@@ -517,30 +506,7 @@ export default function Reporting({
       )}
       {analysis && (
         <>
-          <div className="grid sm:grid-cols-3 gap-3">
-            {[
-              [CalendarDays, 'Période', analysis.period],
-              [Layers3, 'Rapports validés', format(total)],
-              [
-                MapPin,
-                'Couverture des remontées',
-                expected
-                  ? format(Math.round((total / expected) * 1000) / 10, true)
-                  : '—',
-              ],
-            ].map(([Icon, label, value]) => {
-              const CardIcon = Icon as typeof CalendarDays;
-              return (
-                <article key={String(label)} className="panel">
-                  <div className="flex items-center gap-2 text-slate-600 text-sm">
-                    <CardIcon size={18} />
-                    {String(label)}
-                  </div>
-                  <p className="text-2xl font-semibold mt-2">{String(value)}</p>
-                </article>
-              );
-            })}
-          </div>
+          <ReportingOverview analysis={analysis} />
           <article className="panel space-y-4">
             <div className="flex gap-2 items-center">
               <Activity size={19} />
@@ -751,7 +717,10 @@ export default function Reporting({
                 return (
                   <details key={id} className="border rounded-xl p-3">
                     <summary className="cursor-pointer font-medium">
-                      {id} · {label}{' '}
+                      <span className="inline-flex items-center gap-2">
+                        <RubricIcon id={id} />
+                        {id} · {label}
+                      </span>{' '}
                       <span className="text-sm text-slate-500">
                         ({indicators.length})
                       </span>

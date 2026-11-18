@@ -65,6 +65,8 @@ export type Validated = {
   month: number;
   data: unknown;
 };
+type WorkflowReport = Omit<Validated, 'data'> & { status: string };
+const transmittedStatuses = new Set(['SOUMIS', 'REVOQUE', 'CORRIGE', 'VALIDE']);
 type Bucket = { count: number; values: Record<string, number | null> };
 export type Analysis = ReturnType<typeof analyze>;
 
@@ -139,6 +141,10 @@ export function analyze(
   filters: Filters,
   services: Service[],
   reports: Validated[],
+  workflow: WorkflowReport[] = reports.map((report) => ({
+    ...report,
+    status: 'VALIDE',
+  })),
 ) {
   const serviceMap = new Map(services.map((service) => [service.id, service]));
   const catalog =
@@ -176,7 +182,11 @@ export function analyze(
       !filters.rubrics.length || filters.rubrics.includes(field.rubric),
   );
   const keys = indicators.map(([id]) => id);
-  const periodReports = (data: Validated[], year: number, month: number) =>
+  const periodReports = <T extends Pick<Validated, 'year' | 'month'>>(
+    data: T[],
+    year: number,
+    month: number,
+  ) =>
     data.filter(
       (report) => report.year === year && (!month || report.month === month),
     );
@@ -219,6 +229,92 @@ export function analyze(
       ),
     };
   });
+  const scopedWorkflow = workflow.filter((report) => {
+    const service = serviceMap.get(report.serviceId);
+    return (
+      service &&
+      (filters.group === 'all' ||
+        filters.ids.includes(
+          filters.group === 'region' ? service.region.id : service.id,
+        ))
+    );
+  });
+  const workflowNow = periodReports(
+    scopedWorkflow,
+    filters.year,
+    filters.mode === 'year' ? 0 : filters.month,
+  );
+  const regional = new Map<
+    string,
+    { id: string; name: string; expected: number; transmitted: number }
+  >();
+  for (const service of services) {
+    if (
+      filters.group !== 'all' &&
+      !filters.ids.includes(
+        filters.group === 'region' ? service.region.id : service.id,
+      )
+    )
+      continue;
+    const region = regional.get(service.region.id) ?? {
+      ...service.region,
+      expected: 0,
+      transmitted: 0,
+    };
+    region.expected += filters.mode === 'year' ? 12 : 1;
+    regional.set(region.id, region);
+  }
+  for (const report of workflowNow) {
+    const region = regional.get(serviceMap.get(report.serviceId)!.region.id);
+    if (region && transmittedStatuses.has(report.status))
+      region.transmitted += 1;
+  }
+  const operational = {
+    regions: [...regional.values()].sort(
+      (a, b) =>
+        b.transmitted / b.expected - a.transmitted / a.expected ||
+        a.name.localeCompare(b.name, 'fr'),
+    ),
+    expected: [...regional.values()].reduce(
+      (sum, region) => sum + region.expected,
+      0,
+    ),
+    validated: workflowNow.filter((report) => report.status === 'VALIDE')
+      .length,
+    pending: workflowNow.filter((report) => report.status === 'SOUMIS').length,
+    correction: workflowNow.filter(
+      (report) => report.status === 'REVOQUE' || report.status === 'CORRIGE',
+    ).length,
+    transmitted: workflowNow.filter((report) =>
+      transmittedStatuses.has(report.status),
+    ).length,
+    toReview: workflowNow
+      .filter((report) =>
+        ['SOUMIS', 'REVOQUE', 'CORRIGE'].includes(report.status),
+      )
+      .map((report) => {
+        const service = serviceMap.get(report.serviceId)!;
+        return {
+          serviceId: service.id,
+          region: service.region.name,
+          service: service.name,
+          month: report.month,
+          status: report.status,
+        };
+      })
+      .sort(
+        (a, b) =>
+          b.month - a.month ||
+          a.region.localeCompare(b.region, 'fr') ||
+          a.service.localeCompare(b.service, 'fr'),
+      ),
+    byMonth: months.map((label, index) => ({
+      label,
+      count: periodReports(scopedWorkflow, filters.year, index + 1).filter(
+        (report) => transmittedStatuses.has(report.status),
+      ).length,
+    })),
+  };
   const populated = indicators.filter(([id]) =>
     results.some(
       (result) =>
@@ -241,6 +337,7 @@ export function analyze(
       ? String(filters.year)
       : `${months[filters.month - 1]} ${filters.year}`;
   return {
+    operational,
     filters,
     period,
     periods,

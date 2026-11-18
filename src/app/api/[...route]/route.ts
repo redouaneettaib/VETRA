@@ -91,8 +91,18 @@ async function sendReportEmail(
   }
 }
 async function otp(userId: string, purpose: string, to: string) {
+  const recent = await db.otp.findFirst({
+    where: {
+      userId,
+      purpose,
+      consumed: false,
+      createdAt: { gt: new Date(Date.now() - 30_000) },
+    },
+    select: { id: true },
+  });
+  if (recent) return;
   const code = String(crypto.randomInt(100000, 1000000));
-  await db.otp.create({
+  const challenge = await db.otp.create({
     data: {
       userId,
       purpose,
@@ -100,28 +110,51 @@ async function otp(userId: string, purpose: string, to: string) {
       expiresAt: new Date(Date.now() + 10 * 60_000),
     },
   });
-  await email(
-    to,
-    'VETRA — Code de vérification',
-    `Code à usage unique : ${code}. Expiration : 10 minutes.`,
-  );
+  try {
+    await email(
+      to,
+      'VETRA — Code de vérification',
+      `Code à usage unique : ${code}. Expiration : 10 minutes.`,
+    );
+  } catch (error) {
+    await db.otp.update({
+      where: { id: challenge.id },
+      data: { consumed: true },
+    });
+    throw error;
+  }
 }
 async function verifyOtp(userId: string, purpose: string, code: string) {
-  const candidates = await db.otp.findMany({
-    where: { userId, purpose, consumed: false, expiresAt: { gt: new Date() } },
-    orderBy: { createdAt: 'desc' },
-    take: 3,
+  if (!/^\d{6}$/.test(code)) return false;
+  const challenge = await db.otp.findFirst({
+    where: { userId, purpose },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
   });
-  for (const x of candidates)
-    if (await bcrypt.compare(code, x.hash)) {
-      const used = await db.otp.updateMany({
-        where: { id: x.id, consumed: false, expiresAt: { gt: new Date() } },
-        data: { consumed: true },
-      });
-      return used.count === 1;
-    }
-  return false;
+  if (!challenge || challenge.consumed || challenge.expiresAt <= new Date())
+    return false;
+  // Preserve compatibility with codes already stored as bare bcrypt hashes.
+  const encoded = /^(\d+):(.+)$/.exec(challenge.hash);
+  const attempts = encoded ? Number(encoded[1]) : 0;
+  const digest = encoded?.[2] ?? challenge.hash;
+  if (attempts >= 5) return false;
+  const reservation = await db.otp.updateMany({
+    where: {
+      id: challenge.id,
+      hash: challenge.hash,
+      consumed: false,
+      expiresAt: { gt: new Date() },
+    },
+    data: { hash: `${attempts + 1}:${digest}` },
+  });
+  if (reservation.count !== 1 || !(await bcrypt.compare(code, digest)))
+    return false;
+  const used = await db.otp.updateMany({
+    where: { id: challenge.id, consumed: false, expiresAt: { gt: new Date() } },
+    data: { consumed: true },
+  });
+  return used.count === 1;
 }
+
 async function handle(
   req: NextRequest,
   method: 'GET' | 'POST',
@@ -133,7 +166,11 @@ async function handle(
   const u = await currentUser();
   if (path === 'login' && method === 'POST') {
     const user = await db.user.findUnique({
-      where: { email: String(body.email || '').toLowerCase() },
+      where: {
+        email: String(body.email || '')
+          .trim()
+          .toLowerCase(),
+      },
     });
     if (
       !user ||
@@ -142,6 +179,11 @@ async function handle(
     )
       return fail('Identifiants incorrects', 401);
     if (process.env.REQUIRE_LOGIN_OTP !== 'false') {
+      if (!mailConfigured())
+        return fail(
+          'L’envoi du code OTP est indisponible. Le serveur de messagerie doit être configuré.',
+          503,
+        );
       await otp(user.id, 'LOGIN', user.email);
       return Response.json({ otpRequired: true, email: user.email });
     }
@@ -150,7 +192,11 @@ async function handle(
   }
   if (path === 'otp/verify' && method === 'POST') {
     const user = await db.user.findUnique({
-      where: { email: String(body.email || '').toLowerCase() },
+      where: {
+        email: String(body.email || '')
+          .trim()
+          .toLowerCase(),
+      },
     });
     if (
       !user ||
@@ -162,20 +208,34 @@ async function handle(
     return Response.json({ ok: true });
   }
   if (path === 'password/request' && method === 'POST') {
+    if (!mailConfigured())
+      return fail(
+        'L’envoi du code est indisponible. Le serveur de messagerie doit être configuré.',
+        503,
+      );
     const user = await db.user.findUnique({
-      where: { email: String(body.email || '').toLowerCase() },
+      where: {
+        email: String(body.email || '')
+          .trim()
+          .toLowerCase(),
+      },
     });
     if (user && user.active) await otp(user.id, 'RESET', user.email);
     return Response.json({ ok: true });
   }
   if (path === 'password/reset' && method === 'POST') {
     const user = await db.user.findUnique({
-      where: { email: String(body.email || '').toLowerCase() },
+      where: {
+        email: String(body.email || '')
+          .trim()
+          .toLowerCase(),
+      },
     });
     if (
       !user ||
       !user.active ||
-      String(body.password || '').length < 12 ||
+      typeof body.password !== 'string' ||
+      body.password.length < 12 ||
       !(await verifyOtp(user.id, 'RESET', String(body.code || '')))
     )
       return fail('Code invalide ou mot de passe trop court');
@@ -712,7 +772,6 @@ async function handle(
       );
     const reports = await db.report.findMany({
       where: {
-        status: 'VALIDE',
         serviceId: { in: eligible.map((service) => service.id) },
         year: {
           gte: Math.max(
@@ -722,9 +781,20 @@ async function handle(
           lte: filters.year,
         },
       },
-      select: { serviceId: true, year: true, month: true, data: true },
+      select: {
+        serviceId: true,
+        year: true,
+        month: true,
+        status: true,
+        data: true,
+      },
     });
-    const analysis = analyze(filters, eligible, reports);
+    const analysis = analyze(
+      filters,
+      eligible,
+      reports.filter((report) => report.status === 'VALIDE'),
+      reports,
+    );
     if (recipient)
       return sendReportEmail(
         recipient,
