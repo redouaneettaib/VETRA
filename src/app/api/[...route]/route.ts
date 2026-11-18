@@ -12,6 +12,7 @@ import { CANEVAS, RUBRICS } from '@/lib/canevas';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import nodemailer from 'nodemailer';
+import { z } from 'zod';
 import {
   calculate,
   calculatedCells,
@@ -28,18 +29,66 @@ type Input = Record<string, any>;
 const obj = (v: unknown): Input =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Input) : {};
 const isAdmin = (role: string) => role === 'ADMIN_NATIONAL';
-async function email(to: string, subject: string, text: string) {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_FROM)
-    throw Error('SMTP non configuré');
+const mailConfigured = () =>
+  Boolean(process.env.SMTP_HOST && process.env.SMTP_FROM);
+const recipientAddress = z.string().trim().max(254).email();
+
+async function email(
+  to: string,
+  subject: string,
+  text: string,
+  attachment?: { filename: string; content: Buffer },
+) {
+  if (!mailConfigured()) throw Error('SMTP non configuré');
+  const port = Number(process.env.SMTP_PORT || 587);
   const tr = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: Number(process.env.SMTP_PORT) === 465,
+    port,
+    secure: port === 465,
     auth: process.env.SMTP_USER
       ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
       : undefined,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
   });
-  await tr.sendMail({ from: process.env.SMTP_FROM, to, subject, text });
+  const sent = await tr.sendMail({
+    from: process.env.SMTP_FROM,
+    to,
+    subject,
+    text,
+    attachments: attachment
+      ? [{ ...attachment, contentType: 'application/pdf' }]
+      : undefined,
+  });
+  if (!sent.accepted.length) throw Error('Destinataire refusé par SMTP');
+}
+
+async function sendReportEmail(
+  recipient: string,
+  title: string,
+  pdf: Response,
+) {
+  const filename =
+    pdf.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] ??
+    'VETRA.pdf';
+  const content = Buffer.from(await pdf.arrayBuffer());
+  if (!pdf.ok || content.subarray(0, 5).toString('ascii') !== '%PDF-')
+    return fail('Le PDF n’a pas pu être généré.', 500);
+  try {
+    await email(
+      recipient,
+      'VETRA — ' + title,
+      'Bonjour,\n\nVous trouverez en pièce jointe le rapport PDF généré depuis VETRA.\n\nONSSA / DPA — VETRA',
+      { filename, content },
+    );
+    return Response.json({ sent: true });
+  } catch {
+    return fail(
+      'Le serveur de messagerie n’a pas confirmé l’envoi du PDF. Vérifiez l’adresse et réessayez.',
+      502,
+    );
+  }
 }
 async function otp(userId: string, purpose: string, to: string) {
   const code = String(crypto.randomInt(100000, 1000000));
@@ -602,9 +651,19 @@ async function handle(
       }),
     );
   }
+  const reportEmail =
+    method === 'POST' &&
+    (path === 'export/email' || path === 'analytics/email');
+  const checkedRecipient = reportEmail
+    ? recipientAddress.safeParse(body.recipient)
+    : null;
+  if (checkedRecipient && !checkedRecipient.success)
+    return fail('Saisissez une seule adresse e-mail valide.');
+  const recipient = checkedRecipient?.success ? checkedRecipient.data : null;
   if (
-    method === 'GET' &&
-    (path === 'analytics' || path === 'analytics/export')
+    (method === 'GET' &&
+      (path === 'analytics' || path === 'analytics/export')) ||
+    (reportEmail && path === 'analytics/email')
   ) {
     const params = req.nextUrl.searchParams;
     let filters;
@@ -646,6 +705,11 @@ async function handle(
       )
     )
       return fail('Périmètre non autorisé', 403);
+    if (recipient && !mailConfigured())
+      return fail(
+        'Le serveur de messagerie SMTP de VETRA n’est pas configuré.',
+        503,
+      );
     const reports = await db.report.findMany({
       where: {
         status: 'VALIDE',
@@ -661,6 +725,12 @@ async function handle(
       select: { serviceId: true, year: true, month: true, data: true },
     });
     const analysis = analyze(filters, eligible, reports);
+    if (recipient)
+      return sendReportEmail(
+        recipient,
+        `Reporting ${analysis.period}`,
+        await exportAnalysis(analysis, 'pdf'),
+      );
     if (path === 'analytics')
       return Response.json(analysis, {
         headers: { 'Cache-Control': 'private, no-store' },
@@ -705,7 +775,10 @@ async function handle(
       ),
     });
   }
-  if (path === 'export') {
+  if (
+    (method === 'GET' && path === 'export') ||
+    (reportEmail && path === 'export/email')
+  ) {
     const id = req.nextUrl.searchParams.get('id');
     const report = await db.report.findUnique({
       where: { id: String(id) },
@@ -716,6 +789,18 @@ async function handle(
       (await allowedServices(u)).includes(report.serviceId) === false
     )
       return fail('Accès refusé', 403);
+    if (recipient) {
+      if (!mailConfigured())
+        return fail(
+          'Le serveur de messagerie SMTP de VETRA n’est pas configuré.',
+          503,
+        );
+      return sendReportEmail(
+        recipient,
+        `Rapport ${report.month}/${report.year} · ${report.service.name}`,
+        await exportReport(report, 'pdf'),
+      );
+    }
     const type = req.nextUrl.searchParams.get('type');
     if (type !== 'pdf' && type !== 'xlsx') return fail('Format inconnu');
     return exportReport(report, type);

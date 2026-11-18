@@ -17,6 +17,7 @@ import {
   type Service,
 } from '@/lib/analytics';
 import ReportShare from './ReportShare';
+import ReportEmail from './ReportEmail';
 
 const palette = [
   '#027e77',
@@ -333,6 +334,16 @@ export default function Reporting({
               <Download size={16} />
               PDF
             </a>
+            <div className="text-navy">
+              <ReportEmail
+                key={'email-' + exportUrl('pdf')}
+                endpoint={exportUrl('pdf').replace(
+                  '/api/analytics/export?',
+                  '/api/analytics/email?',
+                )}
+                title={`Reporting ${analysis.period}`}
+              />
+            </div>
             <div className="text-navy">
               <ReportShare
                 key={exportUrl('pdf')}

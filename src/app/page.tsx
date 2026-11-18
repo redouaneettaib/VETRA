@@ -12,12 +12,13 @@ import {
 import CanevasTable from './CanevasTable';
 import Reporting from './Reporting';
 import ReportShare from './ReportShare';
+import ReportEmail from './ReportEmail';
 import { enabledRubrics, rubricIds } from '@/lib/forms';
 
 function Brand() {
   return (
     <div className="brand">
-      <img src="/ONSSA_officiel.jpg" alt="ONSSA" />
+      <img src="/onssa-transparent.png" alt="ONSSA" />
       <img src="/VETRA_officiel.jpg" alt="VETRA" />
     </div>
   );
@@ -292,91 +293,98 @@ export default function Home() {
       '/api/export?id=' + encodeURIComponent(id) + '&type=' + type,
       '_blank',
     );
-  const share = (r: Any) => {
-    const text = `VETRA ONSSA - DPA\nRapport ${r.month}/${r.year}\n${r.service.name}\nStatut : ${r.status}\nDocument à joindre après téléchargement et vérification des destinataires.`;
-    window.open(
-      'mailto:?subject=' +
-        encodeURIComponent('VETRA — Rapport mensuel') +
-        '&body=' +
-        encodeURIComponent(text),
-      '_blank',
-    );
-  };
   if (!me)
     return (
-      <div className="max-w-md mx-auto mt-20 panel space-y-5">
-        <Brand />
-        <div className="text-sm text-slate-500">
-          ONSSA – DPA · Plateforme nationale des services vétérinaires
+      <main className="vetra-cover">
+        <div className="vetra-cover-photo">
+          <img
+            src="/inspection-onssa.webp"
+            width="1000"
+            height="1250"
+            fetchPriority="high"
+            alt="Inspecteur ONSSA en blouse blanche contrôlant de la viande, aux côtés de volailles, d’œufs, de produits laitiers et de miel."
+          />
         </div>
-        <form className="space-y-3" onSubmit={login}>
-          <div className="field">
-            <label>E-mail professionnel</label>
-            <input
-              type="email"
-              required
-              value={auth.email}
-              onChange={(e) => setAuth({ ...auth, email: e.target.value })}
-            />
-          </div>
-          {!auth.reset && !auth.otpRequired && (
+        <section className="vetra-cover-login">
+          <Brand />
+          <h1 className="text-2xl font-semibold text-navy">
+            Plateforme nationale des services vétérinaires
+          </h1>
+          <form className="space-y-3" onSubmit={login}>
             <div className="field">
-              <label>Mot de passe</label>
+              <label>E-mail professionnel</label>
               <input
-                type="password"
+                type="email"
                 required
-                value={auth.password}
-                onChange={(e) => setAuth({ ...auth, password: e.target.value })}
+                value={auth.email}
+                onChange={(e) => setAuth({ ...auth, email: e.target.value })}
               />
             </div>
-          )}
-          {auth.otpRequired && (
-            <div className="field">
-              <label>Code OTP reçu par e-mail</label>
-              <input
-                value={auth.code}
-                onChange={(e) => setAuth({ ...auth, code: e.target.value })}
-              />
-            </div>
-          )}
-          <button
-            disabled={busy}
-            className="btn w-full"
-            type={auth.otpRequired ? 'button' : 'submit'}
-            onClick={
-              auth.otpRequired
-                ? async () => {
-                    try {
-                      await api('otp/verify', {
-                        email: auth.email,
-                        code: auth.code,
-                      });
-                      await reload();
-                    } catch (e: any) {
-                      tell(e.message);
-                    }
+            {!auth.reset && !auth.otpRequired && (
+              <div className="field">
+                <label>Mot de passe</label>
+                <input
+                  type="password"
+                  required
+                  value={auth.password}
+                  onChange={(e) =>
+                    setAuth({ ...auth, password: e.target.value })
                   }
-                : undefined
+                />
+              </div>
+            )}
+            {auth.otpRequired && (
+              <div className="field">
+                <label>Code OTP reçu par e-mail</label>
+                <input
+                  value={auth.code}
+                  onChange={(e) => setAuth({ ...auth, code: e.target.value })}
+                />
+              </div>
+            )}
+            <button
+              disabled={busy}
+              className="btn w-full"
+              type={auth.otpRequired ? 'button' : 'submit'}
+              onClick={
+                auth.otpRequired
+                  ? async () => {
+                      try {
+                        await api('otp/verify', {
+                          email: auth.email,
+                          code: auth.code,
+                        });
+                        await reload();
+                      } catch (e: any) {
+                        tell(e.message);
+                      }
+                    }
+                  : undefined
+              }
+            >
+              {auth.otpRequired
+                ? 'Vérifier le code'
+                : auth.reset
+                  ? 'Demander un code'
+                  : 'Se connecter'}
+            </button>
+          </form>
+          <button
+            className="text-sm text-teal"
+            onClick={() =>
+              setAuth({ ...auth, reset: !auth.reset, otpRequired: false })
             }
           >
-            {auth.otpRequired
-              ? 'Vérifier le code'
-              : auth.reset
-                ? 'Demander un code'
-                : 'Se connecter'}
+            {' '}
+            {auth.reset ? 'Retour à la connexion' : 'Mot de passe oublié ?'}
           </button>
-        </form>
-        <button
-          className="text-sm text-teal"
-          onClick={() =>
-            setAuth({ ...auth, reset: !auth.reset, otpRequired: false })
-          }
-        >
-          {' '}
-          {auth.reset ? 'Retour à la connexion' : 'Mot de passe oublié ?'}
-        </button>
-        {message && <p className="text-red-700">{message}</p>}
-      </div>
+          {message && (
+            <p className="text-red-700" role="alert">
+              {message}
+            </p>
+          )}
+        </section>
+      </main>
     );
   const names: Any = {
     dashboard: 'Tableau de bord',
@@ -778,6 +786,11 @@ export default function Home() {
                   >
                     PDF
                   </button>
+                  <ReportEmail
+                    key={current.id}
+                    endpoint={`/api/export/email?id=${encodeURIComponent(current.id)}`}
+                    title={`Rapport ${current.month}/${current.year} · ${selectedService?.name ?? ''}`}
+                  />
                   <ReportShare
                     key={current.id + current.updatedAt}
                     url={`/api/export?id=${encodeURIComponent(current.id)}&type=pdf`}
@@ -830,9 +843,10 @@ export default function Home() {
                           >
                             PDF
                           </button>
-                          <button className="btn alt" onClick={() => share(r)}>
-                            E-mail
-                          </button>
+                          <ReportEmail
+                            endpoint={`/api/export/email?id=${encodeURIComponent(r.id)}`}
+                            title={`Rapport ${r.month}/${r.year} · ${r.service.name}`}
+                          />
                           <ReportShare
                             url={`/api/export?id=${encodeURIComponent(r.id)}&type=pdf`}
                             title={`Rapport ${r.month}/${r.year} · ${r.service.name}`}
@@ -861,9 +875,6 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-slate-500 mt-3">
-              Pour un envoi par e-mail, téléchargez puis joignez le fichier.
-            </p>
           </div>
         )}
         {tab === 'reporting' && (
