@@ -1,54 +1,1291 @@
 'use client';
-import {useEffect,useMemo,useState} from 'react';import {LayoutDashboard,ClipboardList,BarChart3,Settings,LogOut,FileSpreadsheet,ShieldCheck} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  LayoutDashboard,
+  ClipboardList,
+  BarChart3,
+  Settings,
+  LogOut,
+  ShieldCheck,
+} from 'lucide-react';
 
-const LETTERS='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-function CanevasTable({rubric,canevas,values,setValues,editable}:{rubric:string;canevas:Any;values:Any;setValues:(v:Any)=>void;editable:boolean}){
- const meta=canevas.rubrics.find((x:Any)=>x[0]===rubric);
- const rows=canevas.rows.filter((r:Any)=>meta&&r.row>=meta[1]&&r.row<=meta[2]);
- const groups=rubric==='I.B.1'?[{name:'Compteur de sorties',cols:['A','B','C']},{name:'Points de vente',cols:['A','D','E']},{name:'Produits contrôlés',cols:['A','F','G','H','I','J','K','L','M']}]:[{name:'Données du canevas',cols:LETTERS.slice(0,13)}];
- const normalize=(v:any)=>String(v??'').trim();
- const isHeading=(r:Any)=>normalize(r.cells['A'+r.row])!==''&&!LETTERS.slice(1).some(c=>normalize(r.cells[c+r.row])!=='');
- const isHeader=(r:Any)=>{const a=normalize(r.cells['A'+r.row]).toLowerCase();return /éléments à renseigner|eléments à renseigner|types de viandes|désignation|nature des produits/.test(a)||(/^[a-z]/i.test(a)&&LETTERS.slice(1).filter(c=>typeof r.cells[c+r.row]==='string'&&normalize(r.cells[c+r.row])).length>=2)};
- return <div className="space-y-5">{groups.map(group=>{
-   const used=group.cols.filter(c=>c==='A'||rows.some((r:Any)=>normalize(r.cells[c+r.row])!==''));
-   const headerRow=rows.find((r:Any)=>isHeader(r)&&used.some(c=>c!=='A'&&normalize(r.cells[c+r.row])));
-   const headings:Any={};used.forEach(c=>{headings[c]=c==='A'?'Indicateur':normalize(headerRow?.cells[c+headerRow.row])||''});
-   const visible=used.filter(c=>c==='A'||headings[c]||rows.some((r:Any)=>typeof r.cells[c+r.row]==='number'));
-   return <section key={group.name} className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm"><h3 className="font-bold text-navy bg-slate-100 px-5 py-4">{group.name}</h3><div className="scroll"><table className="w-full"><thead><tr>{visible.map(c=><th key={c} scope="col" className="text-left whitespace-normal min-w-28">{headings[c]||'Indicateur'}</th>)}</tr></thead><tbody>{rows.filter((r:Any)=>!isHeader(r)).map((r:Any)=>{
-    if(isHeading(r))return <tr key={r.row}><td colSpan={visible.length} className="bg-slate-50 font-bold text-navy py-3 px-4">{normalize(r.cells['A'+r.row])}</td></tr>;
-    if(!visible.some(c=>normalize(r.cells[c+r.row])))return null;
-    return <tr key={r.row}>{visible.map(c=>{const addr=c+r.row;const v=r.cells[addr];if(c==='A'||typeof v==='string')return <td key={addr} className="text-sm">{normalize(v)}</td>;
-      if(v===undefined&&c!=='A'&&!rows.some((rr:Any)=>rr.row===r.row&&typeof rr.cells[c+rr.row]==='number'))return <td key={addr}/>;
-      const total=c!=='A'&&/total/i.test(headings[c]||'');
-      const source=visible.filter(x=>x!=='A'&&x!==c&&!/total/i.test(headings[x]||''));
-      const sum=source.reduce((n,x)=>n+(Number(values[x+r.row])||0),0);
-      return <td key={addr}>{total?<output className="block rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold" aria-label={'Total '+normalize(r.cells['A'+r.row])}>{sum}</output>:<input aria-label={(normalize(r.cells['A'+r.row])||'Indicateur')+' — '+(headings[c]||c)} disabled={!editable} type="number" min="0" step="any" value={values[addr]??''} onChange={e=>setValues((old:Any)=>({...old,[addr]:e.target.value===''?'':Number(e.target.value)}))} className="w-24"/>}</td>})}</tr>})}</tbody></table></div></section>})}</div>
+import CanevasTable from './CanevasTable';
+import {
+  calculatedCells,
+  enabledRubrics,
+  numericCells,
+  rubricIds,
+} from '@/lib/forms';
+
+function Brand() {
+  return (
+    <div className="brand">
+      <img src="/ONSSA_officiel.jpg" alt="ONSSA" />
+      <img src="/VETRA_officiel.jpg" alt="VETRA" />
+    </div>
+  );
 }
 
-type Any=Record<string,any>;type Tab='dashboard'|'saisie'|'rapports'|'reporting'|'admin';
-async function api(path:string,data?:Any){const r=await fetch('/api/'+path,{method:data?'POST':'GET',headers:{'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined});const x=await r.json();if(!r.ok)throw Error(x.error||'Erreur serveur');return x}
-const sections=['I.A.1','I.A.2','I.A.3','I.A.4','I.A.5','I.A.6','I.A.7','I.B.1','I.B.2','I.C.1','I.C.2','I.D','II.A','II.B','II.C','III','IV','V','VI.A','VI.B'];
-export default function Home(){const [me,setMe]=useState<Any|null>(null),[org,setOrg]=useState<Any>({services:[],regions:[],divisions:[],users:[]}),[canevas,setCanevas]=useState<Any>({rubrics:[],rows:[]}),[reports,setReports]=useState<Any[]>([]),[reporting,setReporting]=useState<Any>({count:0,totals:{},byRegion:[]}),[tab,setTab]=useState<Tab>('dashboard'),[month,setMonth]=useState(new Date().getMonth()+1),[year,setYear]=useState(new Date().getFullYear()),[service,setService]=useState(''),[rubric,setRubric]=useState('I.A.1'),[values,setValues]=useState<Any>({}),[selected,setSelected]=useState(''),[statusFilter,setStatusFilter]=useState('TOUS'),[message,setMessage]=useState(''),[auth,setAuth]=useState<Any>({email:'',password:'',code:'',otpRequired:false,reset:false}),[busy,setBusy]=useState(false),[draftStep,setDraftStep]=useState(0);
-const tell=(s:string)=>{setMessage(s);setTimeout(()=>setMessage(''),6000)};
-async function reload(){const u=await api('me');setMe(u);const [o,c,r,a]=await Promise.all([api('org'),api('canevas'),api(`reports?year=${year}&month=${month}`),api(`reporting?year=${year}&month=${month}`)]);setOrg(o);setCanevas(c);setReports(r);setReporting(a);setService(prev=>prev||u.user.serviceId||o.services[0]?.id||'')}
-useEffect(()=>{reload().catch(()=>setMe(null))},[]);
-useEffect(()=>{if(me)Promise.all([api(`reports?year=${year}&month=${month}`),api(`reporting?year=${year}&month=${month}`)]).then(([r,a])=>{setReports(r);setReporting(a)}).catch(e=>tell(e.message))},[year,month]);
-const current=reports.find(r=>r.serviceId===service);const permittedSections=sections.filter(id=>!org.services.find((s:Any)=>s.id===service)?.rights?.length||org.services.find((s:Any)=>s.id===service)?.rights?.some((r:Any)=>r.rubricId===id&&r.enabled));const completedSteps:Array<string>=Array.isArray(values.__completed)?values.__completed:[];const nextSection=permittedSections.find(id=>!completedSteps.includes(id));const sectionGroup=(id:string)=>id.split('.')[0];const editable=me?.user.role==='CHEF_SERVICE'&&(!current||['BROUILLON','REVOQUE','CORRIGE'].includes(current.status));const assigned=org.services.find((s:Any)=>s.id===service)?.rights||[];const enabled=(id:string)=>!assigned.length||assigned.some((x:Any)=>x.rubricId===id&&x.enabled);
-useEffect(()=>{setValues(current?.data||{});setRubric('I.A.1')},[current?.id,current?.updatedAt,service]);
-const cards=useMemo(()=>{const counts:Any={BROUILLON:0,SOUMIS:0,REVOQUE:0,CORRIGE:0,VALIDE:0,'NON INTRODUIT':0};for(const s of org.services){const r=reports.find(x=>x.serviceId===s.id);counts[r?.status||'NON INTRODUIT']++}return counts},[org.services,reports]);
-async function login(e:React.FormEvent){e.preventDefault();setBusy(true);try{const x=await api(auth.reset?'password/request':'login',{email:auth.email,password:auth.password});if(auth.reset)tell('Code envoyé si le compte existe');else if(x.otpRequired)setAuth({...auth,otpRequired:true});else await reload()}catch(e:any){tell(e.message)}finally{setBusy(false)}}
-async function completeRubric(){if(!editable)return;const next={...values,__completed:[...new Set([...completedSteps,rubric])]};setBusy(true);try{await api('report',{serviceId:service,year,month,data:next});setValues(next);const n=permittedSections.find(id=>!next.__completed.includes(id));if(n)setRubric(n);await reload();tell(n?'Rubrique enregistrée. Étape suivante déverrouillée.':'Toutes les rubriques sont complétées. Rapport prêt à soumettre.')}catch(e:any){tell(e.message)}finally{setBusy(false)}}
-async function save(){setBusy(true);try{const x=await api('report',{serviceId:service,year,month,data:values});await reload();tell('Brouillon enregistré');return x}catch(e:any){tell(e.message);return null}finally{setBusy(false)}}
-async function action(id:string,act:string){let reason='';if(act==='revoquer'){reason=prompt('Motif obligatoire de révocation :')||'';if(!reason.trim())return}else if(!confirm(act==='valider'?'Valider définitivement le rapport complet ?':'Soumettre le rapport mensuel complet ?'))return;try{if(act==='soumettre'){if(nextSection){tell('Complétez d’abord la rubrique '+nextSection);return}const r=await save();if(!r)return;id=r.id}await api('workflow',{id,action:act,reason});await reload();tell('Rapport '+act)}catch(e:any){tell(e.message)}}
-const download=(id:string,type:'xlsx'|'pdf')=>window.open('/api/export?id='+encodeURIComponent(id)+'&type='+type,'_blank');
-const share=(r:Any,kind:'email'|'whatsapp')=>{const text=`VETRA ONSSA - DPA\nRapport ${r.month}/${r.year}\n${r.service.name}\nStatut : ${r.status}\nDocument à joindre après téléchargement et vérification des destinataires.`;window.open(kind==='whatsapp'?'https://wa.me/?text='+encodeURIComponent(text):'mailto:?subject='+encodeURIComponent('VETRA — Rapport mensuel')+'&body='+encodeURIComponent(text),'_blank')};
-if(!me)return <div className="max-w-md mx-auto mt-20 panel space-y-5"><div className="text-4xl font-black text-navy">VETRA <span className="text-teal">✓</span></div><div className="text-sm text-slate-500">ONSSA – DPA · Plateforme nationale des services vétérinaires</div><form className="space-y-3" onSubmit={login}><div className="field"><label>E-mail professionnel</label><input type="email" required value={auth.email} onChange={e=>setAuth({...auth,email:e.target.value})}/></div>{!auth.reset&&!auth.otpRequired&&<div className="field"><label>Mot de passe</label><input type="password" required value={auth.password} onChange={e=>setAuth({...auth,password:e.target.value})}/></div>}{auth.otpRequired&&<div className="field"><label>Code OTP reçu par e-mail</label><input value={auth.code} onChange={e=>setAuth({...auth,code:e.target.value})}/></div>}<button disabled={busy} className="btn w-full" type={auth.otpRequired?'button':'submit'} onClick={auth.otpRequired?async()=>{try{await api('otp/verify',{email:auth.email,code:auth.code});await reload()}catch(e:any){tell(e.message)}}:undefined}>{auth.otpRequired?'Vérifier le code':auth.reset?'Demander un code':'Se connecter'}</button></form><button className="text-sm text-teal" onClick={()=>setAuth({...auth,reset:!auth.reset,otpRequired:false})}> {auth.reset?'Retour à la connexion':'Mot de passe oublié ?'}</button>{message&&<p className="text-red-700">{message}</p>}</div>;
-const names:Any={dashboard:'Tableau de bord',saisie:'Saisie mensuelle',rapports:'Rapports et validation',reporting:'Reporting officiel',admin:'Administration'};
-const nav:[Tab,React.ReactNode][]=[['dashboard',<LayoutDashboard size={18}/>],['saisie',<ClipboardList size={18}/>],['rapports',<ShieldCheck size={18}/>],['reporting',<BarChart3 size={18}/>],...(me.user.role==='ADMIN_NATIONAL'?([['admin',<Settings size={18}/>]] as [Tab,React.ReactNode][]):[])];
-return <div className="min-h-screen md:flex"><aside className="bg-navy text-white md:w-64 md:min-h-screen p-4 shrink-0"><div className="font-black text-3xl tracking-wider mb-1">VETRA <span className="text-teal">✓</span></div><p className="text-xs text-slate-300 mb-7">ONSSA – DPA<br/>Veille, Traçabilité et Reporting</p><nav className="flex md:block overflow-x-auto gap-2">{nav.map(([key,icon])=><button key={key} onClick={()=>setTab(key)} className={'flex items-center gap-2 px-3 py-3 rounded-lg text-sm w-full whitespace-nowrap text-left '+(tab===key?'bg-white/20':'hover:bg-white/10')}>{icon}{names[key]}</button>)}</nav><div className="mt-10 text-xs text-slate-300">{me.user.firstName} {me.user.name}<br/>{me.user.role}</div><button className="mt-4 flex items-center gap-2 text-xs" onClick={async()=>{await api('logout',{});setMe(null)}}><LogOut size={14}/>Déconnexion</button></aside><main className="p-4 md:p-7 flex-1 min-w-0 space-y-5"><header className="flex flex-wrap gap-4 justify-between items-center"><div><h1 className="text-2xl font-bold">{names[tab]}</h1><p className="text-sm text-slate-500">Plateforme nationale ONSSA – DPA</p></div><div className="flex gap-2"><select value={month} onChange={e=>setMonth(+e.target.value)}>{Array.from({length:12},(_,i)=><option key={i} value={i+1}>{new Date(2026,i,1).toLocaleString('fr-FR',{month:'long'})}</option>)}</select><input aria-label="Année" className="w-24" type="number" value={year} onChange={e=>setYear(+e.target.value)}/></div></header>{message&&<div className="p-3 rounded-lg bg-amber-100 text-amber-900">{message}</div>}
-{tab==='dashboard'&&<><div className="grid grid-cols-2 lg:grid-cols-5 gap-3">{[['Services attendus',org.services.length,'TOUS'],['Rapports reçus',reports.length,'TOUS'],['Non introduits',cards['NON INTRODUIT'],'NON INTRODUIT'],['Brouillons',cards.BROUILLON,'BROUILLON'],['Soumis',cards.SOUMIS,'SOUMIS'],['Validés',cards.VALIDE,'VALIDE'],['Révoqués',cards.REVOQUE,'REVOQUE'],['En attente',cards.SOUMIS,'SOUMIS'],['En retard',cards['NON INTRODUIT'],'NON INTRODUIT'],['Taux de validation',org.services.length?Math.round(cards.VALIDE/org.services.length*100)+'%':'0%','VALIDE']].map(([label,count,key])=><button key={String(label)} onClick={()=>setStatusFilter(String(key))} className="panel text-left hover:ring-2 ring-teal"><span className="text-xs text-slate-500">{label}</span><strong className="block text-3xl mt-2 text-navy">{count}</strong></button>)}</div><div className="panel"><h2 className="font-bold text-lg mb-3">Services concernés — {statusFilter}</h2><div className="scroll"><table><thead><tr><th>Service</th><th>Région</th><th>Statut</th></tr></thead><tbody>{org.services.filter((s:Any)=>statusFilter==='TOUS'||(reports.find(r=>r.serviceId===s.id)?.status||'NON INTRODUIT')===statusFilter).map((s:Any)=><tr key={s.id}><td>{s.name}</td><td>{org.regions.find((r:Any)=>r.id===s.division.regionId)?.name}</td><td><span className={'badge '+(reports.find(r=>r.serviceId===s.id)?.status||'')}>{reports.find(r=>r.serviceId===s.id)?.status||'NON INTRODUIT'}</span></td></tr>)}</tbody></table></div></div></>}
-{tab==='saisie'&&<div className="panel space-y-4"><div className="flex flex-wrap gap-3 items-center"><select value={service} onChange={e=>setService(e.target.value)}>{org.services.map((s:Any)=><option key={s.id} value={s.id}>{s.name}</option>)}</select><span className={'badge '+(current?.status||'')}>{current?.status||'NON INTRODUIT'}</span><span className="text-sm text-red-700">{current?.reason}</span></div>{!org.services.length&&<p className="text-amber-700">Aucun service créé ou autorisé. L'administrateur doit configurer les services et habilitations.</p>}<div className="space-y-3"><div className="flex flex-wrap gap-2">{['I','II','III','IV','V','VI'].map(sec=>{const items=permittedSections.filter(id=>sectionGroup(id)===sec);const unlocked=items.length>0&&(!nextSection||permittedSections.indexOf(items[0])<=permittedSections.indexOf(nextSection));return <button type="button" key={sec} disabled={!unlocked} onClick={()=>setRubric(items.find(id=>!completedSteps.includes(id))||items[0])} className={'rounded-xl border px-5 py-3 font-bold '+(sectionGroup(rubric)===sec?'bg-navy text-white':unlocked?'bg-white hover:bg-slate-100':'bg-slate-100 text-slate-400 cursor-not-allowed')}>Section {sec} {!unlocked?'🔒':items.every(id=>completedSteps.includes(id))?'✓':''}</button>})}</div><div className="flex flex-wrap gap-2">{permittedSections.filter(id=>sectionGroup(id)===sectionGroup(rubric)).map(id=>{const unlocked=completedSteps.includes(id)||id===nextSection||!nextSection;return <button type="button" key={id} disabled={!unlocked} onClick={()=>setRubric(id)} className={'rounded-lg border px-4 py-3 text-sm '+(rubric===id?'bg-navy text-white':unlocked?'bg-white hover:bg-slate-100':'bg-slate-100 text-slate-400 cursor-not-allowed')}>{id} {completedSteps.includes(id)?'✓':unlocked?'':'🔒'}<span className="block text-xs">{canevas.rubrics.find((x:any)=>x[0]===id)?.[3]}</span></button>})}</div><p className="text-sm text-slate-500">{completedSteps.filter(id=>permittedSections.includes(id)).length} / {permittedSections.length} rubriques complétées · La rubrique suivante s’ouvre après enregistrement.</p></div><h2 className="font-bold text-lg">{rubric} — {canevas.rubrics.find((x:any)=>x[0]===rubric)?.[3]}</h2>{['I.D','II.C'].includes(rubric)&&<div className="rounded-xl bg-emerald-50 p-4 space-y-3"><h3 className="font-bold">Lignes complémentaires — {rubric==='I.D'?'TIAC':'Retrait / Rappel'}</h3><p className="text-xs">Les lignes initiales du canevas sont conservées ci-dessous. Vous pouvez ajouter plusieurs lignes complémentaires, sans écraser les données d'origine.</p>{(Array.isArray(values.__tables)?values.__tables:[]).map((item:Any,i:number)=>item.rubric===rubric?<div key={i} className="flex gap-2 items-center flex-wrap"><b>Ligne {i+1}</b>{item.values.map((v:any,j:number)=><input key={j} className="w-32" aria-label={'Champ '+(j+1)} disabled={!editable} value={v} onChange={e=>setValues((old:Any)=>({...old,__tables:old.__tables.map((r:Any,k:number)=>k!==i?r:{...r,values:r.values.map((w:any,l:number)=>l===j?e.target.value:w)})}))}/>)}<button disabled={!editable} className="btn red" onClick={()=>setValues((old:Any)=>({...old,__tables:old.__tables.filter((_:Any,k:number)=>k!==i)}))}>Supprimer</button></div>:null)}<button className="btn alt" disabled={!editable} onClick={()=>setValues((old:Any)=>({...old,__tables:[...(Array.isArray(old.__tables)?old.__tables:[]),{rubric,values:['','','','']}] }))}>+ Ajouter une ligne</button></div>}{rubric==='I.B.1'&&<div className="grid md:grid-cols-3 gap-2">{['Compteur de sorties','Points de vente','Produits contrôlés'].map(x=><div key={x} className="bg-slate-100 p-3 rounded-lg font-semibold">{x}</div>)}</div>}{['IV','V'].includes(rubric)&&<p className="text-sm text-amber-700">OVO PRODUITS : unités. Viandes et abats : kg. Les valeurs ne sont jamais additionnées entre unités différentes.</p>}<CanevasTable rubric={rubric} canevas={canevas} values={values} setValues={setValues} editable={editable}/><div className="flex flex-wrap gap-2"><button disabled={!editable||busy} className="btn" onClick={save}>Enregistrer le brouillon</button><button disabled={!editable||busy||completedSteps.includes(rubric)&&rubric!==nextSection} className="btn green" onClick={completeRubric}>Enregistrer et continuer →</button>{!nextSection&&<button disabled={!editable||busy||!current?.id} className="btn green" onClick={()=>action(current?.id||'','soumettre')}>Soumettre le rapport complet</button>}{current&&<><button className="btn alt" onClick={()=>download(current.id,'xlsx')}>XLSX</button><button className="btn alt" onClick={()=>download(current.id,'pdf')}>PDF</button></>}</div></div>}
-{tab==='rapports'&&<div className="panel"><h2 className="font-bold mb-4">Rapports du mois</h2><div className="scroll"><table><thead><tr><th>Service</th><th>Statut</th><th>Actions</th></tr></thead><tbody>{reports.map(r=><tr key={r.id}><td>{r.service.name}</td><td><span className={'badge '+r.status}>{r.status}</span></td><td><div className="flex flex-wrap gap-1"><button className="btn alt" onClick={()=>{setSelected(r.id);setService(r.serviceId);setTab('saisie')}}>Consulter</button><button className="btn alt" onClick={()=>download(r.id,'xlsx')}>XLSX</button><button className="btn alt" onClick={()=>download(r.id,'pdf')}>PDF</button><button className="btn alt" onClick={()=>share(r,'email')}>E-mail</button><button className="btn alt" onClick={()=>share(r,'whatsapp')}>WhatsApp</button>{me.user.role==='CHEF_DIVISION'&&r.status==='SOUMIS'&&<><button className="btn green" onClick={()=>action(r.id,'valider')}>Valider</button><button className="btn red" onClick={()=>action(r.id,'revoquer')}>Révoquer</button></>}</div></td></tr>)}</tbody></table></div><p className="text-xs text-slate-500 mt-3">Le partage ouvre un message prérempli : joindre le document téléchargé après vérification du destinataire.</p></div>}
-{tab==='reporting'&&<div className="space-y-4"><div className="panel"><h2 className="text-xl font-bold">Consolidation officielle</h2><p className="text-slate-500">Uniquement les rapports VALIDÉS · {reporting.count} rapport(s)</p><div className="grid md:grid-cols-2 gap-3 mt-4">{(reporting.byRegion||[]).map(([name,count]:any)=><div key={name} className="p-3 rounded bg-slate-100"><b>{name}</b><span className="float-right">{count}</span><div className="bg-slate-200 h-2 rounded mt-2"><div className="bg-teal h-2 rounded" style={{width:`${100*count/Math.max(1,reporting.count)}%`}}/></div></div>)}</div></div><div className="panel"><h2 className="font-bold mb-3">Indicateurs consolidés par cellule</h2><div className="scroll"><table><thead><tr><th>Cellule</th><th>Total</th></tr></thead><tbody>{Object.entries(reporting.totals||{}).map(([k,v])=><tr key={k}><td>{k}</td><td>{String(v)}</td></tr>)}</tbody></table></div></div></div>}
-{tab==='admin'&&me.user.role==='ADMIN_NATIONAL'&&<div className="space-y-4"><div className="panel"><h2 className="font-bold mb-3">Organisation nationale</h2><div className="grid md:grid-cols-3 gap-3">{[['Directions régionales',org.regions.length],['Divisions vétérinaires',org.divisions.length],['Services',org.services.length]].map(([k,v])=><div key={String(k)} className="bg-slate-100 rounded-lg p-4">{k}<b className="block text-3xl">{v}</b></div>)}</div></div><div className="panel"><h2 className="font-bold mb-3">Créer un service</h2><form className="flex flex-wrap gap-2" onSubmit={async e=>{e.preventDefault();const form=e.currentTarget;const d=Object.fromEntries(new FormData(form));try{await api('admin',{action:'service',...d});form.reset();await reload();tell('Service créé')}catch(e:any){tell(e.message)}}}><input required name="name" placeholder="Nom du service"/><select name="divisionId">{org.divisions.map((d:Any)=><option key={d.id} value={d.id}>{d.name}</option>)}</select><select name="kind"><option value="PROVINCIAL">Provincial</option><option value="FRONTALIER">Frontalier</option></select><button className="btn">Créer</button></form></div><div className="panel"><h2 className="font-bold mb-3">Créer un utilisateur</h2><form className="grid md:grid-cols-3 gap-3" onSubmit={async e=>{e.preventDefault();const form=e.currentTarget;const d=Object.fromEntries(new FormData(form));try{await api('admin',{action:'user',...d});form.reset();await reload();tell('Utilisateur créé')}catch(e:any){tell(e.message)}}}>{['name','firstName','email','phone','password'].map(k=><input key={k} name={k} required={k!=='phone'} minLength={k==='password'?12:undefined} placeholder={k} type={k==='password'?'password':'text'}/>)}<select name="role">{['ADMIN_NATIONAL','CHEF_SERVICE','CHEF_DIVISION','DIRECTEUR_REGIONAL','DIRECTION_CENTRALE'].map(x=><option key={x}>{x}</option>)}</select><select name="regionId"><option value="">Région</option>{org.regions.map((x:Any)=><option key={x.id} value={x.id}>{x.name}</option>)}</select><select name="divisionId"><option value="">Division</option>{org.divisions.map((x:Any)=><option key={x.id} value={x.id}>{x.name}</option>)}</select><select name="serviceId"><option value="">Service</option>{org.services.map((x:Any)=><option key={x.id} value={x.id}>{x.name}</option>)}</select><button className="btn">Créer le compte</button></form></div><div className="panel"><h2 className="font-bold mb-3">Habilitations individuelles par rubrique</h2><select value={service} onChange={e=>setService(e.target.value)}>{org.services.map((s:Any)=><option key={s.id} value={s.id}>{s.name}</option>)}</select><div className="grid md:grid-cols-4 gap-2 mt-3">{canevas.rubrics.map(([id,_a,_b,label]:any)=><label key={id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={enabled(id)} onChange={e=>{setOrg((o:Any)=>({...o,services:o.services.map((s:Any)=>s.id!==service?s:{...s,rights:canevas.rubrics.map(([rid]:any)=>({rubricId:rid,enabled:rid===id?e.target.checked:enabled(rid)}))})}))}}/>{id} {label}</label>)}</div><button className="btn mt-3" onClick={async()=>{try{await api('admin',{action:'rights',serviceId:service,enabled:canevas.rubrics.filter(([id]:any)=>enabled(id)).map(([id]:any)=>id)});await reload();tell('Habilitations enregistrées')}catch(e:any){tell(e.message)}}}>Enregistrer les habilitations</button></div></div>}
-</main></div>}
+type Any = Record<string, any>;
+type Tab = 'dashboard' | 'saisie' | 'rapports' | 'reporting' | 'admin';
+async function api(path: string, data?: Any) {
+  const r = await fetch('/api/' + path, {
+    method: data ? 'POST' : 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    body: data ? JSON.stringify(data) : undefined,
+  });
+  const x = await r.json();
+  if (!r.ok) throw Error(x.error || 'Erreur serveur');
+  return x;
+}
+export default function Home() {
+  const [me, setMe] = useState<Any | null>(null),
+    [org, setOrg] = useState<Any>({
+      services: [],
+      regions: [],
+      divisions: [],
+      users: [],
+    }),
+    [canevas, setCanevas] = useState<Any>({ rubrics: [], rows: [] }),
+    [reports, setReports] = useState<Any[]>([]),
+    [reporting, setReporting] = useState<Any>({
+      count: 0,
+      totals: {},
+      byRegion: [],
+    }),
+    [tab, setTab] = useState<Tab>('dashboard'),
+    [month, setMonth] = useState(new Date().getMonth() + 1),
+    [year, setYear] = useState(new Date().getFullYear()),
+    [service, setService] = useState(''),
+    [rubric, setRubric] = useState('I.A.1'),
+    [values, setValues] = useState<Any>({}),
+    [statusFilter, setStatusFilter] = useState('TOUS'),
+    [message, setMessage] = useState(''),
+    [auth, setAuth] = useState<Any>({
+      email: '',
+      password: '',
+      code: '',
+      otpRequired: false,
+      reset: false,
+    }),
+    [busy, setBusy] = useState(false),
+    [draftStep, setDraftStep] = useState(0);
+  const tell = (s: string) => {
+    setMessage(s);
+    setTimeout(() => setMessage(''), 6000);
+  };
+  async function reload() {
+    const u = await api('me');
+    setMe(u);
+    const [o, c, r, a] = await Promise.all([
+      api('org'),
+      api('canevas'),
+      api(`reports?year=${year}&month=${month}`),
+      api(`reporting?year=${year}&month=${month}`),
+    ]);
+    setOrg(o);
+    setCanevas(c);
+    setReports(r);
+    setReporting(a);
+    setLoadedPeriod(year + '-' + month);
+    setService((prev) =>
+      o.services.some((s: Any) => s.id === prev)
+        ? prev
+        : u.user.serviceId || o.services[0]?.id || '',
+    );
+  }
+  useEffect(() => {
+    reload().catch(() => setMe(null));
+  }, []);
+  useEffect(() => {
+    if (!me) return;
+    let active = true;
+    Promise.all([
+      api(`reports?year=${year}&month=${month}`),
+      api(`reporting?year=${year}&month=${month}`),
+    ])
+      .then(([r, a]) => {
+        if (active) {
+          setReports(r);
+          setReporting(a);
+          setLoadedPeriod(year + '-' + month);
+        }
+      })
+      .catch((e) => {
+        if (active) tell(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [year, month]);
+  const selectedService = org.services.find((s: Any) => s.id === service);
+  const current = reports.find(
+    (r) => r.serviceId === service && r.year === year && r.month === month,
+  );
+  const permittedSections = selectedService
+    ? enabledRubrics(selectedService.rights)
+    : [];
+  const [loadedPeriod, setLoadedPeriod] = useState('');
+  const periodReady = loadedPeriod === year + '-' + month;
+  const [serviceKind, setServiceKind] = useState('');
+  const [regionFilter, setRegionFilter] = useState('');
+  const dashboardServices = org.services.filter(
+    (s: Any) =>
+      (!serviceKind || s.kind === serviceKind) &&
+      (!regionFilter || s.division.regionId === regionFilter),
+  );
+  const reportByService = new Map(
+    reports
+      .filter((r) => r.year === year && r.month === month)
+      .map((r) => [r.serviceId, r]),
+  );
+  const [reportingRubric, setReportingRubric] = useState('');
+  const [adminRole, setAdminRole] = useState('CHEF_SERVICE');
+  const [editingService, setEditingService] = useState('');
+  const storedSteps: Array<string> = Array.isArray(values.__completed)
+    ? values.__completed
+    : [];
+  const firstMissing = permittedSections.findIndex(
+    (id) => !storedSteps.includes(id),
+  );
+  const completedSteps =
+    firstMissing < 0
+      ? permittedSections
+      : permittedSections.slice(0, firstMissing);
+  const nextSection = permittedSections.find(
+    (id) => !completedSteps.includes(id),
+  );
+  const sectionGroup = (id: string) => id.split('.')[0];
+  const editable =
+    periodReady &&
+    !!selectedService &&
+    me?.user.role === 'CHEF_SERVICE' &&
+    (!current || ['BROUILLON', 'REVOQUE', 'CORRIGE'].includes(current.status));
+  const assigned =
+    org.services.find((s: Any) => s.id === service)?.rights || [];
+  const enabled = (id: string) =>
+    !assigned.length ||
+    assigned.some((x: Any) => x.rubricId === id && x.enabled);
+  useEffect(() => {
+    if (!periodReady) return;
+    const history = Array.isArray(current?.data?.__completed)
+      ? current.data.__completed
+      : [];
+    const missing = permittedSections.findIndex((id) => !history.includes(id));
+    const completed =
+      missing < 0 ? permittedSections : permittedSections.slice(0, missing);
+    setValues(current?.data || {});
+    setRubric((prev) =>
+      permittedSections.includes(prev as (typeof rubricIds)[number]) &&
+      (!editable ||
+        completed.some((id) => id === prev) ||
+        prev === permittedSections.find((id) => !completed?.includes(id)))
+        ? prev
+        : editable
+          ? (permittedSections.find((id) => !completed?.includes(id)) ??
+            permittedSections[0] ??
+            '')
+          : (permittedSections[0] ?? ''),
+    );
+  }, [
+    current?.id,
+    current?.updatedAt,
+    service,
+    year,
+    month,
+    periodReady,
+    permittedSections.join(','),
+  ]);
+  const cards: Any = {
+    BROUILLON: 0,
+    SOUMIS: 0,
+    REVOQUE: 0,
+    CORRIGE: 0,
+    VALIDE: 0,
+    'NON INTRODUIT': 0,
+  };
+  for (const item of dashboardServices)
+    cards[reportByService.get(item.id)?.status || 'NON INTRODUIT']++;
+  async function login(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const x = await api(auth.reset ? 'password/request' : 'login', {
+        email: auth.email,
+        password: auth.password,
+      });
+      if (auth.reset) tell('Code envoyé si le compte existe');
+      else if (x.otpRequired) setAuth({ ...auth, otpRequired: true });
+      else await reload();
+    } catch (e: any) {
+      tell(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function completeRubric() {
+    if (!editable) return;
+    const next = {
+      ...values,
+      __completed: [...new Set([...completedSteps, rubric])],
+    };
+    setBusy(true);
+    try {
+      await api('report', {
+        serviceId: service,
+        year,
+        month,
+        version: current?.updatedAt,
+        data: next,
+      });
+      const n = permittedSections.find((id) => !next.__completed.includes(id));
+      await reload();
+      if (n) setRubric(n);
+      tell(
+        n
+          ? 'Rubrique enregistrée. Étape suivante déverrouillée.'
+          : 'Toutes les rubriques sont complétées. Rapport prêt à soumettre.',
+      );
+    } catch (e: any) {
+      tell(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function save() {
+    setBusy(true);
+    try {
+      const x = await api('report', {
+        serviceId: service,
+        year,
+        month,
+        version: current?.updatedAt,
+        data: { ...values, __completed: completedSteps },
+      });
+      await reload();
+      tell('Brouillon enregistré');
+      return x;
+    } catch (e: any) {
+      tell(e.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function action(id: string, act: string) {
+    let reason = '';
+    if (act === 'revoquer') {
+      reason = prompt('Motif obligatoire de révocation :') || '';
+      if (!reason.trim()) return;
+    } else if (
+      !confirm(
+        act === 'valider'
+          ? 'Valider définitivement le rapport complet ?'
+          : 'Soumettre le rapport mensuel complet ?',
+      )
+    )
+      return;
+    try {
+      if (act === 'soumettre') {
+        if (nextSection) {
+          tell('Complétez d’abord la rubrique ' + nextSection);
+          return;
+        }
+        const r = await save();
+        if (!r) return;
+        id = r.id;
+      }
+      await api('workflow', { id, action: act, reason });
+      await reload();
+      tell('Rapport ' + act);
+    } catch (e: any) {
+      tell(e.message);
+    }
+  }
+  const download = (id: string, type: 'xlsx' | 'pdf') =>
+    window.open(
+      '/api/export?id=' + encodeURIComponent(id) + '&type=' + type,
+      '_blank',
+    );
+  const share = (r: Any, kind: 'email' | 'whatsapp') => {
+    const text = `VETRA ONSSA - DPA\nRapport ${r.month}/${r.year}\n${r.service.name}\nStatut : ${r.status}\nDocument à joindre après téléchargement et vérification des destinataires.`;
+    window.open(
+      kind === 'whatsapp'
+        ? 'https://wa.me/?text=' + encodeURIComponent(text)
+        : 'mailto:?subject=' +
+            encodeURIComponent('VETRA — Rapport mensuel') +
+            '&body=' +
+            encodeURIComponent(text),
+      '_blank',
+    );
+  };
+  if (!me)
+    return (
+      <div className="max-w-md mx-auto mt-20 panel space-y-5">
+        <Brand />
+        <div className="text-sm text-slate-500">
+          ONSSA – DPA · Plateforme nationale des services vétérinaires
+        </div>
+        <form className="space-y-3" onSubmit={login}>
+          <div className="field">
+            <label>E-mail professionnel</label>
+            <input
+              type="email"
+              required
+              value={auth.email}
+              onChange={(e) => setAuth({ ...auth, email: e.target.value })}
+            />
+          </div>
+          {!auth.reset && !auth.otpRequired && (
+            <div className="field">
+              <label>Mot de passe</label>
+              <input
+                type="password"
+                required
+                value={auth.password}
+                onChange={(e) => setAuth({ ...auth, password: e.target.value })}
+              />
+            </div>
+          )}
+          {auth.otpRequired && (
+            <div className="field">
+              <label>Code OTP reçu par e-mail</label>
+              <input
+                value={auth.code}
+                onChange={(e) => setAuth({ ...auth, code: e.target.value })}
+              />
+            </div>
+          )}
+          <button
+            disabled={busy}
+            className="btn w-full"
+            type={auth.otpRequired ? 'button' : 'submit'}
+            onClick={
+              auth.otpRequired
+                ? async () => {
+                    try {
+                      await api('otp/verify', {
+                        email: auth.email,
+                        code: auth.code,
+                      });
+                      await reload();
+                    } catch (e: any) {
+                      tell(e.message);
+                    }
+                  }
+                : undefined
+            }
+          >
+            {auth.otpRequired
+              ? 'Vérifier le code'
+              : auth.reset
+                ? 'Demander un code'
+                : 'Se connecter'}
+          </button>
+        </form>
+        <button
+          className="text-sm text-teal"
+          onClick={() =>
+            setAuth({ ...auth, reset: !auth.reset, otpRequired: false })
+          }
+        >
+          {' '}
+          {auth.reset ? 'Retour à la connexion' : 'Mot de passe oublié ?'}
+        </button>
+        {message && <p className="text-red-700">{message}</p>}
+      </div>
+    );
+  const names: Any = {
+    dashboard: 'Tableau de bord',
+    saisie: 'Saisie mensuelle',
+    rapports: 'Rapports et validation',
+    reporting: 'Reporting officiel',
+    admin: 'Administration',
+  };
+  const nav: [Tab, React.ReactNode][] = [
+    ['dashboard', <LayoutDashboard size={18} />],
+    ['saisie', <ClipboardList size={18} />],
+    ['rapports', <ShieldCheck size={18} />],
+    ['reporting', <BarChart3 size={18} />],
+    ...(me.user.role === 'ADMIN_NATIONAL'
+      ? ([['admin', <Settings size={18} />]] as [Tab, React.ReactNode][])
+      : []),
+  ];
+  return (
+    <div className="min-h-screen md:flex">
+      <aside className="bg-navy text-white md:w-64 md:min-h-screen p-4 shrink-0">
+        <Brand />
+        <p className="text-sm text-slate-300 mt-4 mb-7">
+          ONSSA – DPA
+          <br />
+          Veille, Traçabilité et Reporting
+        </p>
+        <nav className="flex md:block overflow-x-auto gap-2">
+          {nav.map(([key, icon]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={
+                'flex items-center gap-2 px-3 py-3 rounded-lg text-sm w-full whitespace-nowrap text-left ' +
+                (tab === key ? 'bg-white/20' : 'hover:bg-white/10')
+              }
+            >
+              {icon}
+              {names[key]}
+            </button>
+          ))}
+        </nav>
+        <div className="mt-10 text-xs text-slate-300">
+          {me.user.firstName} {me.user.name}
+          <br />
+          {
+            {
+              ADMIN_NATIONAL: 'Administrateur national',
+              CHEF_SERVICE: 'Chef de service',
+              CHEF_DIVISION: 'Chef de division',
+              DIRECTEUR_REGIONAL: 'Directeur régional',
+              DIRECTION_CENTRALE: 'Direction centrale',
+            }[me.user.role as string]
+          }
+        </div>
+        <button
+          className="mt-4 flex items-center gap-2 text-xs"
+          onClick={async () => {
+            await api('logout', {});
+            setMe(null);
+          }}
+        >
+          <LogOut size={14} />
+          Déconnexion
+        </button>
+      </aside>
+      <main className="p-4 md:p-7 flex-1 min-w-0 space-y-5">
+        <header className="flex flex-wrap gap-4 justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold">{names[tab]}</h1>
+            <p className="text-sm text-slate-500">
+              Plateforme nationale ONSSA – DPA
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <select
+              aria-label="Mois"
+              disabled={busy}
+              value={month}
+              onChange={(e) => setMonth(+e.target.value)}
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i} value={i + 1}>
+                  {new Date(2026, i, 1).toLocaleString('fr-FR', {
+                    month: 'long',
+                  })}
+                </option>
+              ))}
+            </select>
+            <input
+              aria-label="Année"
+              disabled={busy}
+              min="1900"
+              max="9999"
+              className="w-24"
+              type="number"
+              value={year}
+              onChange={(e) => setYear(+e.target.value)}
+            />
+          </div>
+        </header>
+        {message && (
+          <div
+            role="status"
+            className="p-3 rounded-lg bg-amber-100 text-amber-900"
+          >
+            {message}
+          </div>
+        )}
+        {tab === 'dashboard' && periodReady && (
+          <>
+            <div className="flex flex-wrap gap-3">
+              <select
+                aria-label="Type de service"
+                value={serviceKind}
+                onChange={(e) => setServiceKind(e.target.value)}
+              >
+                <option value="">Tous les types de service</option>
+                <option value="PROVINCIAL">Provinciaux</option>
+                <option value="FRONTALIER">Frontaliers</option>
+              </select>
+              <select
+                aria-label="Région"
+                value={regionFilter}
+                onChange={(e) => setRegionFilter(e.target.value)}
+              >
+                <option value="">Toutes les régions</option>
+                {org.regions
+                  .filter((r: Any) =>
+                    org.services.some((s: Any) => s.division.regionId === r.id),
+                  )
+                  .map((r: Any) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              {[
+                ['Services attendus', dashboardServices.length, 'TOUS'],
+                [
+                  'Rapports saisis',
+                  dashboardServices.length - cards['NON INTRODUIT'],
+                  'SAISIS',
+                ],
+                ['Non introduits', cards['NON INTRODUIT'], 'NON INTRODUIT'],
+                ['Brouillons', cards.BROUILLON, 'BROUILLON'],
+                ['Soumis', cards.SOUMIS, 'SOUMIS'],
+                ['Validés', cards.VALIDE, 'VALIDE'],
+                ['Révoqués', cards.REVOQUE, 'REVOQUE'],
+                ['Corrigés', cards.CORRIGE, 'CORRIGE'],
+                [
+                  'Taux de validation',
+                  dashboardServices.length
+                    ? Math.round(
+                        (cards.VALIDE / dashboardServices.length) * 100,
+                      ) + '%'
+                    : '0%',
+                  'VALIDE',
+                ],
+              ].map(([label, count, key]) => (
+                <button
+                  key={String(label)}
+                  onClick={() => setStatusFilter(String(key))}
+                  className="panel text-left hover:ring-2 ring-teal"
+                >
+                  <span className="text-xs text-slate-500">{label}</span>
+                  <strong className="block text-3xl mt-2 text-navy">
+                    {count}
+                  </strong>
+                </button>
+              ))}
+            </div>
+            <div className="panel">
+              <h2 className="font-bold text-lg mb-3">
+                Services concernés — {statusFilter}
+              </h2>
+              <div className="scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Service</th>
+                      <th>Région</th>
+                      <th>Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboardServices
+                      .filter(
+                        (s: Any) =>
+                          statusFilter === 'TOUS' ||
+                          (statusFilter === 'SAISIS'
+                            ? reportByService.has(s.id)
+                            : (reportByService.get(s.id)?.status ||
+                                'NON INTRODUIT') === statusFilter),
+                      )
+                      .map((s: Any) => (
+                        <tr key={s.id}>
+                          <td>{s.name}</td>
+                          <td>
+                            {
+                              org.regions.find(
+                                (r: Any) => r.id === s.division.regionId,
+                              )?.name
+                            }
+                          </td>
+                          <td>
+                            <span
+                              className={
+                                'badge ' +
+                                (reportByService.get(s.id)?.status || '')
+                              }
+                            >
+                              {reportByService.get(s.id)?.status ||
+                                'NON INTRODUIT'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+        {!periodReady && tab !== 'admin' && (
+          <p role="status">Chargement de la période…</p>
+        )}
+        {tab === 'saisie' && periodReady && (
+          <div className="panel space-y-4">
+            <div className="flex flex-wrap gap-3 items-center">
+              <select
+                aria-label="Service"
+                disabled={busy}
+                value={service}
+                onChange={(e) => setService(e.target.value)}
+              >
+                {org.services.map((s: Any) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ·{' '}
+                    {s.kind === 'FRONTALIER' ? 'Frontalier' : 'Provincial'}
+                  </option>
+                ))}
+              </select>
+              <span className={'badge ' + (current?.status || '')}>
+                {current?.status || 'NON INTRODUIT'}
+              </span>
+              <span className="text-sm text-red-700">{current?.reason}</span>
+            </div>
+            {org.services.length > 0 && !permittedSections.length && (
+              <p>Aucune rubrique habilitée pour ce service.</p>
+            )}
+            {!org.services.length && (
+              <p className="text-amber-700">
+                Aucun service créé ou autorisé. L'administrateur doit configurer
+                les services et habilitations.
+              </p>
+            )}
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {['I', 'II', 'III', 'IV', 'V', 'VI'].map((sec) => {
+                  const items = permittedSections.filter(
+                    (id) => sectionGroup(id) === sec,
+                  );
+                  const unlocked =
+                    items.length > 0 &&
+                    (!editable ||
+                      !nextSection ||
+                      permittedSections.indexOf(items[0]) <=
+                        permittedSections.indexOf(nextSection));
+                  return (
+                    <button
+                      type="button"
+                      key={sec}
+                      disabled={!unlocked}
+                      onClick={() =>
+                        setRubric(
+                          items.find((id) => !completedSteps.includes(id)) ||
+                            items[0],
+                        )
+                      }
+                      className={
+                        'rounded-xl border px-5 py-3 font-bold ' +
+                        (sectionGroup(rubric) === sec
+                          ? 'bg-navy text-white'
+                          : unlocked
+                            ? 'bg-white hover:bg-slate-100'
+                            : 'bg-slate-100 text-slate-400 cursor-not-allowed')
+                      }
+                    >
+                      Section {sec}{' '}
+                      {!unlocked
+                        ? '🔒'
+                        : items.every((id) => completedSteps.includes(id))
+                          ? '✓'
+                          : ''}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {permittedSections
+                  .filter((id) => sectionGroup(id) === sectionGroup(rubric))
+                  .map((id) => {
+                    const unlocked =
+                      !editable ||
+                      completedSteps.includes(id) ||
+                      id === nextSection ||
+                      !nextSection;
+                    return (
+                      <button
+                        type="button"
+                        key={id}
+                        disabled={!unlocked}
+                        onClick={() => setRubric(id)}
+                        className={
+                          'rounded-lg border px-4 py-3 text-sm ' +
+                          (rubric === id
+                            ? 'bg-navy text-white'
+                            : unlocked
+                              ? 'bg-white hover:bg-slate-100'
+                              : 'bg-slate-100 text-slate-400 cursor-not-allowed')
+                        }
+                      >
+                        {id}{' '}
+                        {completedSteps.includes(id)
+                          ? '✓'
+                          : unlocked
+                            ? ''
+                            : '🔒'}
+                        <span className="block text-xs">
+                          {canevas.rubrics.find((x: any) => x[0] === id)?.[3]}
+                        </span>
+                      </button>
+                    );
+                  })}
+              </div>
+              <p className="text-sm text-slate-500">
+                {
+                  completedSteps.filter((id) =>
+                    permittedSections.some((rid) => rid === id),
+                  ).length
+                }{' '}
+                / {permittedSections.length} rubriques complétées · La rubrique
+                suivante s’ouvre après enregistrement.
+              </p>
+            </div>
+            <h2 className="font-bold text-lg">
+              {rubric} —{' '}
+              {canevas.rubrics.find((x: any) => x[0] === rubric)?.[3]}
+            </h2>
+            <fieldset disabled={busy}>
+              <CanevasTable
+                rubric={rubric}
+                values={values}
+                setValues={setValues}
+                editable={editable}
+              />
+            </fieldset>
+            <div className="flex flex-wrap gap-2">
+              <button
+                disabled={!editable || busy || !permittedSections.length}
+                className="btn"
+                onClick={save}
+              >
+                Enregistrer le brouillon
+              </button>
+              <button
+                disabled={
+                  !editable || busy || !rubric || rubric !== nextSection
+                }
+                className="btn green"
+                onClick={completeRubric}
+              >
+                Enregistrer et continuer
+              </button>
+              {!!permittedSections.length && !nextSection && (
+                <button
+                  disabled={!editable || busy || !current?.id}
+                  className="btn green"
+                  onClick={() => action(current?.id || '', 'soumettre')}
+                >
+                  Soumettre le rapport complet
+                </button>
+              )}
+              {current && (
+                <>
+                  <button
+                    className="btn alt"
+                    onClick={() => download(current.id, 'xlsx')}
+                  >
+                    XLSX
+                  </button>
+                  <button
+                    className="btn alt"
+                    onClick={() => download(current.id, 'pdf')}
+                  >
+                    PDF
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+        {tab === 'rapports' && periodReady && (
+          <div className="panel">
+            <h2 className="font-bold mb-4">Rapports du mois</h2>
+            <div className="scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Service</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reports.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.service.name}</td>
+                      <td>
+                        <span className={'badge ' + r.status}>{r.status}</span>
+                      </td>
+                      <td>
+                        <div className="flex flex-wrap gap-1">
+                          <button
+                            className="btn alt"
+                            onClick={() => {
+                              setService(r.serviceId);
+                              setTab('saisie');
+                            }}
+                          >
+                            Consulter
+                          </button>
+                          <button
+                            className="btn alt"
+                            onClick={() => download(r.id, 'xlsx')}
+                          >
+                            XLSX
+                          </button>
+                          <button
+                            className="btn alt"
+                            onClick={() => download(r.id, 'pdf')}
+                          >
+                            PDF
+                          </button>
+                          <button
+                            className="btn alt"
+                            onClick={() => share(r, 'email')}
+                          >
+                            E-mail
+                          </button>
+                          <button
+                            className="btn alt"
+                            onClick={() => share(r, 'whatsapp')}
+                          >
+                            WhatsApp
+                          </button>
+                          {me.user.role === 'CHEF_DIVISION' &&
+                            r.status === 'SOUMIS' && (
+                              <>
+                                <button
+                                  className="btn green"
+                                  onClick={() => action(r.id, 'valider')}
+                                >
+                                  Valider
+                                </button>
+                                <button
+                                  className="btn red"
+                                  onClick={() => action(r.id, 'revoquer')}
+                                >
+                                  Révoquer
+                                </button>
+                              </>
+                            )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-slate-500 mt-3">
+              Le partage ouvre un message prérempli : joindre le document
+              téléchargé après vérification du destinataire.
+            </p>
+          </div>
+        )}
+        {tab === 'reporting' && periodReady && (
+          <div className="space-y-4">
+            <div className="panel">
+              <h2 className="text-xl font-bold">Consolidation officielle</h2>
+              <p className="text-slate-500">
+                Uniquement les rapports VALIDÉS · {reporting.count} rapport(s)
+              </p>
+              <div className="grid md:grid-cols-2 gap-3 mt-4">
+                {(reporting.byRegion || []).map(([name, count]: any) => (
+                  <div key={name} className="p-3 rounded bg-slate-100">
+                    <b>{name}</b>
+                    <span className="float-right">{count}</span>
+                    <div className="bg-slate-200 h-2 rounded mt-2">
+                      <div
+                        className="bg-teal h-2 rounded"
+                        style={{
+                          width: `${(100 * count) / Math.max(1, reporting.count)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="panel">
+              <h2 className="font-bold mb-3">Indicateurs consolidés</h2>
+              <select
+                aria-label="Rubrique consolidée"
+                className="mb-4"
+                value={reportingRubric}
+                onChange={(e) => setReportingRubric(e.target.value)}
+              >
+                <option value="">Toutes les rubriques</option>
+                {canevas.rubrics.map(([id, , , label]: any) => (
+                  <option key={id} value={id}>
+                    {id} · {label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-slate-600 mb-3">
+                Les taux de non-conformité se consultent dans chaque rapport.
+              </p>
+              <div className="scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Indicateur</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(reporting.totals || {})
+                      .map(([k, v]) => ({
+                        k,
+                        v,
+                        field: numericCells.get(k) || calculatedCells.get(k),
+                      }))
+                      .filter(
+                        ({ field }) =>
+                          field &&
+                          (!reportingRubric ||
+                            reportingRubric === field.rubric),
+                      )
+                      .map(({ k, v, field }) => (
+                        <tr key={k}>
+                          <td>
+                            {field?.rubric} · {field?.label}
+                          </td>
+                          <td>{Number(v).toLocaleString('fr-FR')}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+        {tab === 'admin' && me.user.role === 'ADMIN_NATIONAL' && (
+          <div className="space-y-4">
+            <div className="panel">
+              <h2 className="font-bold mb-3">Organisation nationale</h2>
+              <div className="grid md:grid-cols-3 gap-3">
+                {[
+                  ['Directions régionales', org.regions.length],
+                  ['Divisions vétérinaires', org.divisions.length],
+                  ['Services', org.services.length],
+                ].map(([k, v]) => (
+                  <div key={String(k)} className="bg-slate-100 rounded-lg p-4">
+                    {k}
+                    <b className="block text-3xl">{v}</b>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="panel">
+              <h2 className="font-bold mb-3">Gestion des services</h2>
+              <select
+                aria-label="Service à modifier"
+                value={editingService}
+                onChange={(e) => setEditingService(e.target.value)}
+              >
+                <option value="">Nouveau service</option>
+                {org.services.map((item: Any) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+              <form
+                key={editingService}
+                className="flex flex-wrap gap-2 mt-3"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const d = Object.fromEntries(new FormData(form));
+                  try {
+                    await api('admin', {
+                      action: editingService ? 'serviceUpdate' : 'service',
+                      id: editingService,
+                      ...d,
+                    });
+                    if (!editingService) form.reset();
+                    await reload();
+                    tell('Service enregistré');
+                  } catch (e: any) {
+                    tell(e.message);
+                  }
+                }}
+              >
+                <input
+                  required
+                  aria-label="Nom du service"
+                  name="name"
+                  placeholder="Nom du service"
+                  defaultValue={
+                    org.services.find((item: Any) => item.id === editingService)
+                      ?.name
+                  }
+                />
+                <select
+                  name="divisionId"
+                  aria-label="Division"
+                  defaultValue={
+                    org.services.find((item: Any) => item.id === editingService)
+                      ?.divisionId
+                  }
+                >
+                  {org.divisions.map((d: Any) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  name="kind"
+                  aria-label="Type de service"
+                  defaultValue={
+                    org.services.find((item: Any) => item.id === editingService)
+                      ?.kind
+                  }
+                >
+                  <option value="PROVINCIAL">Provincial</option>
+                  <option value="FRONTALIER">Frontalier</option>
+                </select>
+                <button className="btn">
+                  {editingService ? 'Enregistrer' : 'Créer'}
+                </button>
+              </form>
+            </div>
+            <div className="panel">
+              <h2 className="font-bold mb-3">Créer un utilisateur</h2>
+              <form
+                className="grid md:grid-cols-3 gap-3"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const d = Object.fromEntries(new FormData(form));
+                  try {
+                    await api('admin', { action: 'user', ...d });
+                    form.reset();
+                    await reload();
+                    tell('Utilisateur créé');
+                  } catch (e: any) {
+                    tell(e.message);
+                  }
+                }}
+              >
+                {['name', 'firstName', 'email', 'phone', 'password'].map(
+                  (k) => (
+                    <input
+                      key={k}
+                      name={k}
+                      required={k !== 'phone'}
+                      minLength={k === 'password' ? 12 : undefined}
+                      aria-label={
+                        {
+                          name: 'Nom',
+                          firstName: 'Prénom',
+                          email: 'E-mail',
+                          phone: 'Téléphone',
+                          password: 'Mot de passe',
+                        }[k]
+                      }
+                      placeholder={
+                        {
+                          name: 'Nom',
+                          firstName: 'Prénom',
+                          email: 'E-mail',
+                          phone: 'Téléphone',
+                          password: 'Mot de passe',
+                        }[k]
+                      }
+                      type={
+                        k === 'password'
+                          ? 'password'
+                          : k === 'email'
+                            ? 'email'
+                            : 'text'
+                      }
+                    />
+                  ),
+                )}
+                <select
+                  name="role"
+                  aria-label="Profil"
+                  value={adminRole}
+                  onChange={(e) => setAdminRole(e.target.value)}
+                >
+                  {[
+                    'ADMIN_NATIONAL',
+                    'CHEF_SERVICE',
+                    'CHEF_DIVISION',
+                    'DIRECTEUR_REGIONAL',
+                    'DIRECTION_CENTRALE',
+                  ].map((x) => (
+                    <option key={x}>{x}</option>
+                  ))}
+                </select>
+                <select
+                  name="regionId"
+                  aria-label="Région de rattachement"
+                  required={adminRole === 'DIRECTEUR_REGIONAL'}
+                  hidden={adminRole !== 'DIRECTEUR_REGIONAL'}
+                >
+                  <option value="">Région</option>
+                  {org.regions.map((x: Any) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  name="divisionId"
+                  aria-label="Division de rattachement"
+                  required={adminRole === 'CHEF_DIVISION'}
+                  hidden={adminRole !== 'CHEF_DIVISION'}
+                >
+                  <option value="">Division</option>
+                  {org.divisions.map((x: Any) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  name="serviceId"
+                  aria-label="Service de rattachement"
+                  required={adminRole === 'CHEF_SERVICE'}
+                  hidden={adminRole !== 'CHEF_SERVICE'}
+                >
+                  <option value="">Service</option>
+                  {org.services.map((x: Any) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
+                <button className="btn">Créer le compte</button>
+              </form>
+            </div>
+            <div className="panel">
+              <h2 className="font-bold mb-3">Comptes utilisateurs</h2>
+              <div className="scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Utilisateur</th>
+                      <th>Profil</th>
+                      <th>État</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {org.users.map((user: Any) => (
+                      <tr key={user.id}>
+                        <td>
+                          {user.firstName} {user.name}
+                          <br />
+                          {user.email}
+                        </td>
+                        <td>{user.role}</td>
+                        <td>{user.active ? 'Actif' : 'Désactivé'}</td>
+                        <td>
+                          <button
+                            className="btn alt"
+                            disabled={user.id === me.user.id || busy}
+                            onClick={async () => {
+                              setBusy(true);
+                              try {
+                                await api('admin', {
+                                  action: 'userUpdate',
+                                  id: user.id,
+                                  active: !user.active,
+                                });
+                                await reload();
+                                tell('Compte mis à jour');
+                              } catch (e: any) {
+                                tell(e.message);
+                              } finally {
+                                setBusy(false);
+                              }
+                            }}
+                          >
+                            {user.active ? 'Désactiver' : 'Réactiver'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="panel">
+              <h2 className="font-bold mb-3">
+                Habilitations du service par rubrique
+              </h2>
+              <select
+                aria-label="Service"
+                disabled={busy}
+                value={service}
+                onChange={(e) => setService(e.target.value)}
+              >
+                {org.services.map((s: Any) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ·{' '}
+                    {s.kind === 'FRONTALIER' ? 'Frontalier' : 'Provincial'}
+                  </option>
+                ))}
+              </select>
+              <div className="grid md:grid-cols-4 gap-2 mt-3">
+                {canevas.rubrics.map(([id, _a, _b, label]: any) => (
+                  <label key={id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={enabled(id)}
+                      onChange={(e) => {
+                        setOrg((o: Any) => ({
+                          ...o,
+                          services: o.services.map((s: Any) =>
+                            s.id !== service
+                              ? s
+                              : {
+                                  ...s,
+                                  rights: canevas.rubrics.map(([rid]: any) => ({
+                                    rubricId: rid,
+                                    enabled:
+                                      rid === id
+                                        ? e.target.checked
+                                        : enabled(rid),
+                                  })),
+                                },
+                          ),
+                        }));
+                      }}
+                    />
+                    {id} {label}
+                  </label>
+                ))}
+              </div>
+              <button
+                disabled={!service}
+                className="btn mt-3"
+                onClick={async () => {
+                  try {
+                    await api('admin', {
+                      action: 'rights',
+                      serviceId: service,
+                      enabled: canevas.rubrics
+                        .filter(([id]: any) => enabled(id))
+                        .map(([id]: any) => id),
+                    });
+                    await reload();
+                    tell('Habilitations enregistrées');
+                  } catch (e: any) {
+                    tell(e.message);
+                  }
+                }}
+              >
+                Enregistrer les habilitations
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

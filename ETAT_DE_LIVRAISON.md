@@ -1,31 +1,24 @@
-# VETRA — État vérifiable de la livraison
+# VETRA — Vérifications de livraison
 
-**Nom :** VETRA — ONSSA / DPA (jamais PAOLEX, jamais DCPA).
+## Périmètre
 
-## Sources intégrées
-- `canevas_CASA_original.xlsx` : classeur CASA transmis (une seule feuille).
-- `src/lib/casa.json` : 286 lignes renseignées de CASA.
-- `src/lib/canevas.ts` : 20 rubriques, avec limites de lignes.
+La version est issue du commit `e4528f3b2c4059ee5f23b7db35170d07e90872c7` de `redouaneettaib/VETRA`. Le classeur d'origine et le schéma PostgreSQL/Prisma sont conservés. Les assets ONSSA et VETRA proviennent des logos fournis.
 
-## Modules développés
-- Next.js 15 / TypeScript / Tailwind / PostgreSQL / Prisma.
-- Rôles et périmètres vérifiés dans les routes API.
-- 12 régions, 12 divisions (une par région) initialisées par le seed.
-- Administration : création des services, comptes, droits par rubrique ; API de modification de services et activation/désactivation des comptes.
-- Rapport unique par service/mois/année (contrainte Prisma).
-- Brouillon → Soumis → Validé ; Révoqué → Corrigé → Soumis → Validé, journal d'événements.
-- Sous-tableaux distincts I.B.1 ; lignes complémentaires I.D et II.C.
-- XLSX basé sur le fichier CASA original, préservant le classeur et ajoutant une feuille de lignes supplémentaires.
-- PDF avec police Unicode intégrée.
-- Reporting uniquement sur les rapports validés.
+## Correspondance avec le canevas CASA
 
-## Limites connues, à corriger avant production
-- Aucun test de démarrage Next.js + PostgreSQL n'a pu être exécuté ici : installation npm et serveur PostgreSQL non disponibles dans cette session.
-- L'écran d'administration n'expose pas encore toutes les actions d'édition existant dans l'API.
-- Le partage WhatsApp et e-mail prépare des messages mais ne transmet pas automatiquement les fichiers ni un lien temporaire signé.
-- Les 10 cartes KPI sont présentes, mais « en retard » utilise le statut non introduit et non une vraie règle de date limite.
-- Les formulaires CASA doivent encore être vérifiés métier ligne par ligne (calculs, colonnes et unités).
-- L'envoi SMTP OTP dépend d'une configuration SMTP valide. Aucune preuve de livraison réelle d'e-mail n'est disponible.
-- Audit de sécurité et tests end-to-end non réalisés.
+- Les 20 rubriques s'appuient sur des plages explicites. Une cellule de saisie vide dans le classeur reste saisissable dans l'interface. Les libellés, en-têtes, lignes de regroupement et formules ont des traitements distincts.
+- I.B.1 comporte trois tableaux indépendants. Les foyers TIAC et les retraits/rappels disposent de lignes répétables avec les 4 et 14 colonnes du canevas.
+- Les totaux horizontaux et verticaux sont calculés avec les formules CASA. Le total des inspections reprend bien tous les postes de la formule d'origine, jusqu'aux cuisines centrales.
+- Les taux de non-conformité restent exprimés de 0 à 100. Les sommes de taux du classeur ont été écartées dans l'export et la consolidation. Un taux consolidé exige les nombres de résultats non conformes et les dénominateurs correspondants. L'application laisse ces taux consultables dans les rapports individuels.
+- L'export XLSX conserve les fusions et styles de CASA, remplace les valeurs d'exemple, remplit les cellules de la période et préserve les formules applicables. Les lignes qui dépassent les emplacements TIAC et retrait/rappel prévus figurent dans des feuilles complémentaires. Le PDF présente les libellés de reporting, les chiffres, les lignes supplémentaires et les deux logos.
 
-**Ne pas qualifier ce projet de finalisé ou prêt pour production.**
+## Vérifications
+
+- Compilation de production Next.js et contrôle TypeScript réussis.
+- 10 tests automatisés réussis, dont le contenu des exports PDF et XLSX.
+- Parcours fonctionnel réussi sur PostgreSQL 18 avec cinq profils, un service provincial et un service frontalier. Le scénario vérifie l'isolation des accès, les habilitations, les conflits d'écriture, la révocation, les corrections successives, la validation, le journal et la consolidation.
+- Parcours de saisie vérifié dans une simulation DOM de l'interface React connectée au serveur de recette. La vérification inclut les logos servis, la navigation progressive, les totaux, la saisie d'un foyer TIAC et la consultation en lecture seule après soumission. Chromium local est bloqué par les restrictions de l'environnement. Le rendu visuel en navigateur reste à vérifier.
+
+Le workflow de recette utilise des comptes fictifs et une base PostgreSQL locale jetable. Les comptes et rapports de production n'ont fait l'objet d'aucune opération. Les tests de connexion ont utilisé le mode local sans OTP. La réception d'un OTP via le SMTP de l'installation et la compatibilité avec ses données réelles ne font donc pas partie de cette vérification.
+
+Aucun déploiement ni envoi de code sur GitHub n'a été effectué.
