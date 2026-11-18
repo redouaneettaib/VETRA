@@ -1,2 +1,32 @@
-import {describe,it,expect} from 'vitest';import {RUBRICS,CANEVAS,rubricForRow,unitFor} from '../src/lib/canevas';
-describe('Canevas CASA',()=>{it('contient exactement 20 rubriques',()=>expect(RUBRICS).toHaveLength(20));it('reprend les 6 grandes sections',()=>{for(const key of ['I.A.1','I.D','II.C','III','IV','V','VI.A','VI.B'])expect(RUBRICS.map(r=>r[0])).toContain(key)});it('préserve les lignes source',()=>expect(CANEVAS.length).toBeGreaterThan(200));it('ne mélange pas IV et V',()=>{expect(rubricForRow(199)).toBe('IV');expect(rubricForRow(247)).toBe('V')});it('respecte unité des ovoproduits',()=>expect(unitFor(199,'OVO PRODUITS')).toBe('unités'))});
+import { describe, it, expect } from 'vitest';
+import { RUBRICS, CANEVAS, rubricForRow, unitFor } from '../src/lib/canevas';
+describe('Canevas CASA', () => {
+  it('contient exactement 20 rubriques', () =>
+    expect(RUBRICS).toHaveLength(20));
+  it('reprend les 6 grandes sections', () => {
+    for (const key of [
+      'I.A.1',
+      'I.D',
+      'II.C',
+      'III',
+      'IV',
+      'V',
+      'VI.A',
+      'VI.B',
+    ])
+      expect(RUBRICS.map((r) => r[0])).toContain(key);
+  });
+  it('préserve les lignes source', () =>
+    expect(CANEVAS.length).toBeGreaterThan(200));
+  it('ne mélange pas IV et V', () => {
+    expect(rubricForRow(199)).toBe('IV');
+    expect(rubricForRow(247)).toBe('V');
+  });
+  it('respecte unité des ovoproduits', () =>
+    expect(unitFor(199, 'OVO PRODUITS')).toBe('unités'));
+});
+
+it('conserve le libellé intégral de la rubrique I.A.5', () =>
+  expect(RUBRICS.find((r) => r[0] === 'I.A.5')?.[3]).toBe(
+    "Sorties de contrôle des services vétérinaires hors visite d'évaluation régulière",
+  ));

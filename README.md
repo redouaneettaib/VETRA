@@ -10,12 +10,19 @@ Sur un environnement de recette, installer les dépendances avec `npm ci`, compi
 
 Pour l'envoi d'e-mails, renseigner côté serveur `SMTP_HOST`, `SMTP_FROM` et au besoin `SMTP_PORT` (587 par défaut, TLS implicite sur 465), `SMTP_USER` et `SMTP_PASS`. Ces réglages sont partagés avec les codes de connexion. Le test des routes d’envoi en recette peut être activé avec `VETRA_TEST_SMTP_CAPTURE=true` et un serveur SMTP local de capture, configuré pour ne rien transmettre.
 
+### Connexion et authentification
+
+La page de garde utilise une photo en filigrane plein écran. L’identification se fait avec le mot de passe, puis le code OTP transmis par e-mail. Le code est valable 10 minutes et accepte jusqu’à cinq tentatives de vérification. Le lien « Mot de passe oublié ? » permet de choisir et confirmer un nouveau mot de passe avec un code de réinitialisation dédié.
+
+Docker Compose active l’OTP par défaut. Si l’environnement de production contient déjà `REQUIRE_LOGIN_OTP=false`, remplacez cette valeur par `REQUIRE_LOGIN_OTP=true` une fois le SMTP opérationnel. Les variables d’envoi sont communes aux codes et aux rapports.
+
 ## Utiliser le portail
 
 - Le chef de service renseigne les rubriques habilitées dans l’ordre du canevas. « Enregistrer et continuer » valide l’étape et ouvre la suivante. Les rubriques déjà enregistrées restent modifiables tant que le rapport est ouvert.
 - Le chef de division consulte les rapports de sa division. Il peut valider un rapport soumis ou le renvoyer au chef de service en motivant la révocation. La correction peut être enregistrée plusieurs fois avant sa nouvelle soumission.
 - Le directeur régional consulte son périmètre. La direction centrale consulte la consolidation nationale. L'administrateur national gère les services, les comptes et les habilitations par rubrique.
 - Le tableau de bord distingue les services attendus, les rapports saisis et leurs statuts. Il est filtrable par région et par type de service. La consolidation prend uniquement les rapports validés du périmètre et de la période sélectionnée.
+- Le suivi du reporting présente les états de transmission, la répartition en anneau, les taux par région, les volumes mensuels et les rapports à suivre. Les indicateurs métiers détaillés restent calculés sur les rapports validés du périmètre choisi.
 - Dans **Reporting officiel**, choisissez un rapport mensuel ou annuel, puis le périmètre global ou plusieurs régions ou services. Sélectionnez les rubriques et dépliez leurs tableaux. Un clic sur un indicateur du tableau met à jour la courbe.
 - Les courbes montrent les mois de l'année ou un historique de 3, 5 ou 10 ans. Les barres comparent les entités sélectionnées sur la période du rapport. L'absence de saisie est signalée par un tiret, tandis qu'un zéro saisi est affiché. Les taux de non-conformité ne sont pas additionnés et restent visibles lorsqu'une seule observation est disponible.
 - Les boutons **Excel** et **PDF** du reporting exportent la sélection active. Excel contient la couverture, les séries chronologiques et les feuilles par rubrique. Le PDF comprend les courbes de l'indicateur actif et les tableaux par périmètre. Le PDF mensuel depuis la saisie et la liste des rapports reprend les tableaux du canevas.

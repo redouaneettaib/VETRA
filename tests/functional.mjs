@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import ExcelJS from 'exceljs';
@@ -18,6 +20,38 @@ const password = 'VetraTest-local-2026';
 const tag = Date.now().toString();
 const identities = {};
 const users = [];
+
+const otpMailbox = process.env.VETRA_TEST_OTP_MAILBOX;
+
+async function readVerificationCode(email) {
+  const names = (await readdir(otpMailbox))
+    .filter((name) => /^\d+\.eml$/.test(name))
+    .sort((a, b) => parseInt(b) - parseInt(a));
+  for (const name of names) {
+    const mail = (await readFile(join(otpMailbox, name), 'utf8')).replace(
+      /=\r?\n/g,
+      '',
+    );
+    const destination = /^To: (.+)$/im.exec(mail)?.[1]?.trim();
+    const code = /Code [^:]+ : (\d{6})/.exec(mail)?.[1];
+    if (destination === email && code) return code;
+  }
+  throw Error('Aucun OTP capturé pour le compte de test');
+}
+
+async function loginWithTestAccount(identity) {
+  const response = await call(null, 'login', identity);
+  if (!otpMailbox) return response;
+  assert.equal((await response.json()).otpRequired, true);
+  assert.equal(response.headers.get('set-cookie'), null);
+  const code = await readVerificationCode(identity.email);
+  const confirmed = await call(null, 'otp/verify', {
+    email: identity.email,
+    code,
+  });
+  await call(null, 'otp/verify', { email: identity.email, code }, 401);
+  return confirmed;
+}
 
 async function provision(region, division, role, name, serviceId) {
   const email = `${name}-${tag}@example.invalid`;
@@ -103,7 +137,7 @@ try {
   );
   await call(null, 'me', undefined, 401);
   for (const identity of Object.values(identities)) {
-    const response = await call(null, 'login', identity);
+    const response = await loginWithTestAccount(identity);
     identity.cookie = response.headers.get('set-cookie')?.split(';')[0];
     assert.ok(identity.cookie);
   }
@@ -400,6 +434,34 @@ try {
     id: users[0],
     active: true,
   });
+  if (otpMailbox) {
+    const email = provincial.email;
+    const replacement = 'Vetra-Nouveau-Mot-De-Passe-2026';
+    await call(null, 'password/request', { email });
+    const code = await readVerificationCode(email);
+    await call(null, 'password/reset', { email, code, password: 'court' }, 400);
+    const reset = await call(null, 'password/reset', {
+      email,
+      code,
+      password: replacement,
+    });
+    assert.equal(reset.headers.get('set-cookie'), null);
+    await call(
+      null,
+      'password/reset',
+      { email, code, password: replacement },
+      400,
+    );
+    await call(null, 'login', { email, password: provincial.password }, 401);
+    const confirmed = await loginWithTestAccount({
+      email,
+      password: replacement,
+    });
+    assert.ok(confirmed.headers.get('set-cookie'));
+    console.log(
+      'OTP par SMTP, Réinitialisation et rejet des codes réutilisés vérifiés.',
+    );
+  }
   await call(provincial, 'logout', {});
   console.log(
     'VETRA : parcours PostgreSQL, cinq profils, deux services, workflow, droits, audit et exports validés.',
@@ -408,6 +470,7 @@ try {
   const serviceIds = [service?.id, otherService?.id].filter(Boolean);
   await db.event.deleteMany({ where: { userId: { in: users } } });
   await db.report.deleteMany({ where: { serviceId: { in: serviceIds } } });
+  await db.otp.deleteMany({ where: { userId: { in: users } } });
   await db.user.deleteMany({ where: { id: { in: users } } });
   await db.service.deleteMany({ where: { id: { in: serviceIds } } });
   await db.division.deleteMany({

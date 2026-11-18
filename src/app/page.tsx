@@ -13,6 +13,8 @@ import CanevasTable from './CanevasTable';
 import Reporting from './Reporting';
 import ReportShare from './ReportShare';
 import ReportEmail from './ReportEmail';
+import LoginScreen from './LoginScreen';
+import RubricIcon from './RubricIcon';
 import { enabledRubrics, rubricIds } from '@/lib/forms';
 
 function Brand() {
@@ -54,13 +56,6 @@ export default function Home() {
     [values, setValues] = useState<Any>({}),
     [statusFilter, setStatusFilter] = useState('TOUS'),
     [message, setMessage] = useState(''),
-    [auth, setAuth] = useState<Any>({
-      email: '',
-      password: '',
-      code: '',
-      otpRequired: false,
-      reset: false,
-    }),
     [busy, setBusy] = useState(false),
     [draftStep, setDraftStep] = useState(0);
   const tell = (s: string) => {
@@ -192,23 +187,6 @@ export default function Home() {
   };
   for (const item of dashboardServices)
     cards[reportByService.get(item.id)?.status || 'NON INTRODUIT']++;
-  async function login(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      const x = await api(auth.reset ? 'password/request' : 'login', {
-        email: auth.email,
-        password: auth.password,
-      });
-      if (auth.reset) tell('Code envoyé si le compte existe');
-      else if (x.otpRequired) setAuth({ ...auth, otpRequired: true });
-      else await reload();
-    } catch (e: any) {
-      tell(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
   async function completeRubric() {
     if (!editable) return;
     const next = {
@@ -294,98 +272,7 @@ export default function Home() {
       '_blank',
     );
   if (!me)
-    return (
-      <main className="vetra-cover">
-        <div className="vetra-cover-photo">
-          <img
-            src="/inspection-onssa.webp"
-            width="1000"
-            height="1250"
-            fetchPriority="high"
-            alt="Inspecteur ONSSA en blouse blanche contrôlant de la viande, aux côtés de volailles, d’œufs, de produits laitiers et de miel."
-          />
-        </div>
-        <section className="vetra-cover-login">
-          <Brand />
-          <h1 className="text-2xl font-semibold text-navy">
-            Plateforme nationale des services vétérinaires
-          </h1>
-          <form className="space-y-3" onSubmit={login}>
-            <div className="field">
-              <label>E-mail professionnel</label>
-              <input
-                type="email"
-                required
-                value={auth.email}
-                onChange={(e) => setAuth({ ...auth, email: e.target.value })}
-              />
-            </div>
-            {!auth.reset && !auth.otpRequired && (
-              <div className="field">
-                <label>Mot de passe</label>
-                <input
-                  type="password"
-                  required
-                  value={auth.password}
-                  onChange={(e) =>
-                    setAuth({ ...auth, password: e.target.value })
-                  }
-                />
-              </div>
-            )}
-            {auth.otpRequired && (
-              <div className="field">
-                <label>Code OTP reçu par e-mail</label>
-                <input
-                  value={auth.code}
-                  onChange={(e) => setAuth({ ...auth, code: e.target.value })}
-                />
-              </div>
-            )}
-            <button
-              disabled={busy}
-              className="btn w-full"
-              type={auth.otpRequired ? 'button' : 'submit'}
-              onClick={
-                auth.otpRequired
-                  ? async () => {
-                      try {
-                        await api('otp/verify', {
-                          email: auth.email,
-                          code: auth.code,
-                        });
-                        await reload();
-                      } catch (e: any) {
-                        tell(e.message);
-                      }
-                    }
-                  : undefined
-              }
-            >
-              {auth.otpRequired
-                ? 'Vérifier le code'
-                : auth.reset
-                  ? 'Demander un code'
-                  : 'Se connecter'}
-            </button>
-          </form>
-          <button
-            className="text-sm text-teal"
-            onClick={() =>
-              setAuth({ ...auth, reset: !auth.reset, otpRequired: false })
-            }
-          >
-            {' '}
-            {auth.reset ? 'Retour à la connexion' : 'Mot de passe oublié ?'}
-          </button>
-          {message && (
-            <p className="text-red-700" role="alert">
-              {message}
-            </p>
-          )}
-        </section>
-      </main>
-    );
+    return <LoginScreen brand={<Brand />} submit={api} onLogin={reload} />;
   const names: Any = {
     dashboard: 'Tableau de bord',
     saisie: 'Saisie mensuelle',
@@ -426,9 +313,10 @@ export default function Home() {
             </button>
           ))}
         </nav>
-        <div className="mt-10 text-xs text-slate-300">
-          {me.user.firstName} {me.user.name}
-          <br />
+        <div className="mt-8 border-t border-white/20 pt-5 text-sm text-slate-200">
+          <p className="font-semibold text-amber-300">
+            {me.user.firstName} {me.user.name}
+          </p>
           {
             {
               ADMIN_NATIONAL: 'Administrateur national',
@@ -440,10 +328,18 @@ export default function Home() {
           }
         </div>
         <button
-          className="mt-4 flex items-center gap-2 text-xs"
+          className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-white/40 bg-white/10 hover:bg-white/25 px-3 py-2.5 text-sm font-semibold"
           onClick={async () => {
-            await api('logout', {});
-            setMe(null);
+            try {
+              await api('logout', {});
+              setMe(null);
+            } catch (error) {
+              tell(
+                error instanceof Error
+                  ? error.message
+                  : 'Déconnexion impossible.',
+              );
+            }
           }}
         >
           <LogOut size={14} />
@@ -703,7 +599,7 @@ export default function Home() {
                         disabled={!unlocked}
                         onClick={() => setRubric(id)}
                         className={
-                          'rounded-lg border px-4 py-3 text-sm ' +
+                          'inline-flex items-start gap-2 rounded-lg border px-3 py-2.5 text-left text-sm max-w-full ' +
                           (rubric === id
                             ? 'bg-navy text-white'
                             : unlocked
@@ -711,14 +607,17 @@ export default function Home() {
                               : 'bg-slate-100 text-slate-400 cursor-not-allowed')
                         }
                       >
-                        {id}{' '}
-                        {completedSteps.includes(id)
-                          ? '✓'
-                          : unlocked
-                            ? ''
-                            : '🔒'}
-                        <span className="block text-xs">
-                          {canevas.rubrics.find((x: any) => x[0] === id)?.[3]}
+                        <RubricIcon id={id} />
+                        <span>
+                          {id}{' '}
+                          {completedSteps.includes(id)
+                            ? '✓'
+                            : unlocked
+                              ? ''
+                              : '🔒'}
+                          <span className="block text-xs">
+                            {canevas.rubrics.find((x: any) => x[0] === id)?.[3]}
+                          </span>
                         </span>
                       </button>
                     );
@@ -734,9 +633,12 @@ export default function Home() {
                 suivante s’ouvre après enregistrement.
               </p>
             </div>
-            <h2 className="font-bold text-lg">
-              {rubric} —{' '}
-              {canevas.rubrics.find((x: any) => x[0] === rubric)?.[3]}
+            <h2 className="font-bold text-lg flex items-start gap-2">
+              <RubricIcon id={rubric} />
+              <span>
+                {rubric} —{' '}
+                {canevas.rubrics.find((x: any) => x[0] === rubric)?.[3]}
+              </span>
             </h2>
             <fieldset disabled={busy}>
               <CanevasTable

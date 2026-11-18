@@ -82,3 +82,29 @@ describe('Reporting VETRA', () => {
     ).toBeGreaterThan(0);
   });
 });
+
+it('distingue les rapports transmis des brouillons et conserve les chiffres validés', () => {
+  const result = analyze(
+    parseFilters(new URLSearchParams('year=2026&month=1')),
+    services,
+    reports,
+    [
+      { serviceId: 's1', year: 2026, month: 1, status: 'SOUMIS' },
+      { serviceId: 's2', year: 2026, month: 1, status: 'BROUILLON' },
+      { serviceId: 'private', year: 2026, month: 1, status: 'VALIDE' },
+    ],
+  );
+  expect(result.operational).toMatchObject({
+    expected: 2,
+    transmitted: 1,
+    validated: 0,
+    pending: 1,
+    correction: 0,
+  });
+  expect(result.operational.byMonth[0].count).toBe(1);
+  expect(result.operational.toReview[0]).toMatchObject({
+    serviceId: 's1',
+    status: 'SOUMIS',
+  });
+  expect(result.results[0].current.values.H9).toBe(9);
+});
