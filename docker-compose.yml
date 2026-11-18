@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vetra
+      POSTGRES_USER: vetra
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set_password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  app:
+    build: .
+    ports: ["3000:3000"]
+    environment:
+      DATABASE_URL: postgresql://vetra:${POSTGRES_PASSWORD}@postgres:5432/vetra?schema=public
+      SESSION_SECRET: ${SESSION_SECRET}
+      REQUIRE_LOGIN_OTP: ${REQUIRE_LOGIN_OTP:-false}
+    depends_on: [postgres]
+volumes:
+  pgdata:
