@@ -10,12 +10,9 @@ import {
 } from 'lucide-react';
 
 import CanevasTable from './CanevasTable';
-import {
-  calculatedCells,
-  enabledRubrics,
-  numericCells,
-  rubricIds,
-} from '@/lib/forms';
+import Reporting from './Reporting';
+import ReportShare from './ReportShare';
+import { enabledRubrics, rubricIds } from '@/lib/forms';
 
 function Brand() {
   return (
@@ -48,11 +45,6 @@ export default function Home() {
     }),
     [canevas, setCanevas] = useState<Any>({ rubrics: [], rows: [] }),
     [reports, setReports] = useState<Any[]>([]),
-    [reporting, setReporting] = useState<Any>({
-      count: 0,
-      totals: {},
-      byRegion: [],
-    }),
     [tab, setTab] = useState<Tab>('dashboard'),
     [month, setMonth] = useState(new Date().getMonth() + 1),
     [year, setYear] = useState(new Date().getFullYear()),
@@ -77,16 +69,14 @@ export default function Home() {
   async function reload() {
     const u = await api('me');
     setMe(u);
-    const [o, c, r, a] = await Promise.all([
+    const [o, c, r] = await Promise.all([
       api('org'),
       api('canevas'),
       api(`reports?year=${year}&month=${month}`),
-      api(`reporting?year=${year}&month=${month}`),
     ]);
     setOrg(o);
     setCanevas(c);
     setReports(r);
-    setReporting(a);
     setLoadedPeriod(year + '-' + month);
     setService((prev) =>
       o.services.some((s: Any) => s.id === prev)
@@ -100,14 +90,10 @@ export default function Home() {
   useEffect(() => {
     if (!me) return;
     let active = true;
-    Promise.all([
-      api(`reports?year=${year}&month=${month}`),
-      api(`reporting?year=${year}&month=${month}`),
-    ])
-      .then(([r, a]) => {
+    api(`reports?year=${year}&month=${month}`)
+      .then((r) => {
         if (active) {
           setReports(r);
-          setReporting(a);
           setLoadedPeriod(year + '-' + month);
         }
       })
@@ -139,7 +125,6 @@ export default function Home() {
       .filter((r) => r.year === year && r.month === month)
       .map((r) => [r.serviceId, r]),
   );
-  const [reportingRubric, setReportingRubric] = useState('');
   const [adminRole, setAdminRole] = useState('CHEF_SERVICE');
   const [editingService, setEditingService] = useState('');
   const storedSteps: Array<string> = Array.isArray(values.__completed)
@@ -307,15 +292,13 @@ export default function Home() {
       '/api/export?id=' + encodeURIComponent(id) + '&type=' + type,
       '_blank',
     );
-  const share = (r: Any, kind: 'email' | 'whatsapp') => {
+  const share = (r: Any) => {
     const text = `VETRA ONSSA - DPA\nRapport ${r.month}/${r.year}\n${r.service.name}\nStatut : ${r.status}\nDocument à joindre après téléchargement et vérification des destinataires.`;
     window.open(
-      kind === 'whatsapp'
-        ? 'https://wa.me/?text=' + encodeURIComponent(text)
-        : 'mailto:?subject=' +
-            encodeURIComponent('VETRA — Rapport mensuel') +
-            '&body=' +
-            encodeURIComponent(text),
+      'mailto:?subject=' +
+        encodeURIComponent('VETRA — Rapport mensuel') +
+        '&body=' +
+        encodeURIComponent(text),
       '_blank',
     );
   };
@@ -467,32 +450,34 @@ export default function Home() {
               Plateforme nationale ONSSA – DPA
             </p>
           </div>
-          <div className="flex gap-2">
-            <select
-              aria-label="Mois"
-              disabled={busy}
-              value={month}
-              onChange={(e) => setMonth(+e.target.value)}
-            >
-              {Array.from({ length: 12 }, (_, i) => (
-                <option key={i} value={i + 1}>
-                  {new Date(2026, i, 1).toLocaleString('fr-FR', {
-                    month: 'long',
-                  })}
-                </option>
-              ))}
-            </select>
-            <input
-              aria-label="Année"
-              disabled={busy}
-              min="1900"
-              max="9999"
-              className="w-24"
-              type="number"
-              value={year}
-              onChange={(e) => setYear(+e.target.value)}
-            />
-          </div>
+          {tab !== 'reporting' && (
+            <div className="flex gap-2">
+              <select
+                aria-label="Mois"
+                disabled={busy}
+                value={month}
+                onChange={(e) => setMonth(+e.target.value)}
+              >
+                {Array.from({ length: 12 }, (_, i) => (
+                  <option key={i} value={i + 1}>
+                    {new Date(2026, i, 1).toLocaleString('fr-FR', {
+                      month: 'long',
+                    })}
+                  </option>
+                ))}
+              </select>
+              <input
+                aria-label="Année"
+                disabled={busy}
+                min="1900"
+                max="9999"
+                className="w-24"
+                type="number"
+                value={year}
+                onChange={(e) => setYear(+e.target.value)}
+              />
+            </div>
+          )}
         </header>
         {message && (
           <div
@@ -619,7 +604,7 @@ export default function Home() {
             </div>
           </>
         )}
-        {!periodReady && tab !== 'admin' && (
+        {!periodReady && tab !== 'admin' && tab !== 'reporting' && (
           <p role="status">Chargement de la période…</p>
         )}
         {tab === 'saisie' && periodReady && (
@@ -793,6 +778,11 @@ export default function Home() {
                   >
                     PDF
                   </button>
+                  <ReportShare
+                    key={current.id + current.updatedAt}
+                    url={`/api/export?id=${encodeURIComponent(current.id)}&type=pdf`}
+                    title={`Rapport ${current.month}/${current.year} · ${selectedService?.name ?? ''}`}
+                  />
                 </>
               )}
             </div>
@@ -840,18 +830,13 @@ export default function Home() {
                           >
                             PDF
                           </button>
-                          <button
-                            className="btn alt"
-                            onClick={() => share(r, 'email')}
-                          >
+                          <button className="btn alt" onClick={() => share(r)}>
                             E-mail
                           </button>
-                          <button
-                            className="btn alt"
-                            onClick={() => share(r, 'whatsapp')}
-                          >
-                            WhatsApp
-                          </button>
+                          <ReportShare
+                            url={`/api/export?id=${encodeURIComponent(r.id)}&type=pdf`}
+                            title={`Rapport ${r.month}/${r.year} · ${r.service.name}`}
+                          />
                           {me.user.role === 'CHEF_DIVISION' &&
                             r.status === 'SOUMIS' && (
                               <>
@@ -877,87 +862,24 @@ export default function Home() {
               </table>
             </div>
             <p className="text-xs text-slate-500 mt-3">
-              Le partage ouvre un message prérempli : joindre le document
-              téléchargé après vérification du destinataire.
+              Pour un envoi par e-mail, téléchargez puis joignez le fichier.
             </p>
           </div>
         )}
-        {tab === 'reporting' && periodReady && (
-          <div className="space-y-4">
-            <div className="panel">
-              <h2 className="text-xl font-bold">Consolidation officielle</h2>
-              <p className="text-slate-500">
-                Uniquement les rapports VALIDÉS · {reporting.count} rapport(s)
-              </p>
-              <div className="grid md:grid-cols-2 gap-3 mt-4">
-                {(reporting.byRegion || []).map(([name, count]: any) => (
-                  <div key={name} className="p-3 rounded bg-slate-100">
-                    <b>{name}</b>
-                    <span className="float-right">{count}</span>
-                    <div className="bg-slate-200 h-2 rounded mt-2">
-                      <div
-                        className="bg-teal h-2 rounded"
-                        style={{
-                          width: `${(100 * count) / Math.max(1, reporting.count)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="panel">
-              <h2 className="font-bold mb-3">Indicateurs consolidés</h2>
-              <select
-                aria-label="Rubrique consolidée"
-                className="mb-4"
-                value={reportingRubric}
-                onChange={(e) => setReportingRubric(e.target.value)}
-              >
-                <option value="">Toutes les rubriques</option>
-                {canevas.rubrics.map(([id, , , label]: any) => (
-                  <option key={id} value={id}>
-                    {id} · {label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-sm text-slate-600 mb-3">
-                Les taux de non-conformité se consultent dans chaque rapport.
-              </p>
-              <div className="scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Indicateur</th>
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(reporting.totals || {})
-                      .map(([k, v]) => ({
-                        k,
-                        v,
-                        field: numericCells.get(k) || calculatedCells.get(k),
-                      }))
-                      .filter(
-                        ({ field }) =>
-                          field &&
-                          (!reportingRubric ||
-                            reportingRubric === field.rubric),
-                      )
-                      .map(({ k, v, field }) => (
-                        <tr key={k}>
-                          <td>
-                            {field?.rubric} · {field?.label}
-                          </td>
-                          <td>{Number(v).toLocaleString('fr-FR')}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+        {tab === 'reporting' && (
+          <Reporting
+            initialYear={year}
+            initialMonth={month}
+            services={org.services
+              .map((item: Any) => ({
+                id: item.id,
+                name: item.name,
+                region: org.regions.find(
+                  (region: Any) => region.id === item.division.regionId,
+                ),
+              }))
+              .filter((item: Any) => item.region)}
+          />
         )}
         {tab === 'admin' && me.user.role === 'ADMIN_NATIONAL' && (
           <div className="space-y-4">

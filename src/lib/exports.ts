@@ -1,12 +1,12 @@
 import ExcelJS from 'exceljs';
-import { PDFDocument, rgb } from 'pdf-lib';
-import fontkit from '@pdf-lib/fontkit';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { RUBRICS } from './canevas';
 import {
   calculate,
-  calculatedCells,
+  columnLabel,
+  labelAt,
+  tables,
+  rowHeading,
   dynamicFields,
   formulas,
   numericCells,
@@ -20,7 +20,8 @@ type Report = {
   data: unknown;
   service: { name: string; kind: string };
 };
-const asset = (name: string) => path.join(process.cwd(), 'public', name);
+import { attachment, pdfTables } from './pdf-tables';
+import { format } from './analytics';
 
 export async function exportReport(report: Report, type: 'pdf' | 'xlsx') {
   const data = (
@@ -114,112 +115,70 @@ export async function exportReport(report: Report, type: 'pdf' | 'xlsx') {
     }
     bytes = new Uint8Array((await workbook.xlsx.writeBuffer()) as ArrayBuffer);
   } else {
-    const doc = await PDFDocument.create();
-    doc.registerFontkit(fontkit);
-    const [font, onssa, vetra] = await Promise.all([
-      fs
-        .readFile(asset('DejaVuSans.ttf'))
-        .then((buffer) => doc.embedFont(buffer, { subset: true })),
-      fs
-        .readFile(asset('ONSSA_officiel.jpg'))
-        .then((buffer) => doc.embedJpg(buffer)),
-      fs
-        .readFile(asset('VETRA_officiel.jpg'))
-        .then((buffer) => doc.embedJpg(buffer)),
-    ]);
-    const color = rgb(0.07, 0.19, 0.29);
-    let page = doc.addPage([595, 842]);
-    let y = 0;
-    const header = () => {
-      const left = onssa.scaleToFit(120, 42),
-        right = vetra.scaleToFit(120, 42);
-      page.drawImage(onssa, { x: 36, y: 758, ...left });
-      page.drawImage(vetra, { x: 559 - right.width, y: 758, ...right });
-      page.drawText(`ONSSA – DPA  |  ${title}`, {
-        x: 36,
-        y: 730,
-        font,
-        size: 13,
-        color,
-      });
-      page.drawText(String(doc.getPageCount()), {
-        x: 541,
-        y: 28,
-        font,
-        size: 9,
-        color,
-      });
-      y = 705;
-    };
-    header();
-    const ensure = (height: number) => {
-      if (y >= 48 + height) return;
-      page = doc.addPage([595, 842]);
-      header();
-    };
-    function line(text: string, size = 10, indent = 0) {
-      let current = '';
-      for (const char of text.replace(/[\r\n\t]/g, ' ')) {
-        if (font.widthOfTextAtSize(current + char, size) > 523 - indent) {
-          ensure(16);
-          page.drawText(current.trim(), {
-            x: 36 + indent,
-            y,
-            font,
-            size,
-            color,
-          });
-          y -= 16;
-          current = '';
-        }
-        current += char;
-      }
-      ensure(16);
-      page.drawText(current.trim(), { x: 36 + indent, y, font, size, color });
-      y -= 16;
-    }
-    line(
+    const pdf = await pdfTables(
+      title,
       report.service.name +
-        ' · Service ' +
-        (report.service.kind === 'FRONTALIER' ? 'frontalier' : 'provincial'),
+        ' · ' +
+        (report.service.kind === 'FRONTALIER'
+          ? 'Service frontalier'
+          : 'Service provincial') +
+        ' · ' +
+        report.status,
     );
-    line('Statut : ' + report.status);
+    let populated = false;
     for (const [rubric, , , label] of RUBRICS) {
-      const fields = [...numericCells, ...calculatedCells].filter(
-        ([, field]) => field.rubric === rubric,
-      );
-      const entries = fields.flatMap(([address, field]) => {
-        const value = calculate(address, data);
-        return value === undefined
-          ? []
-          : [field.label + ' : ' + value.toLocaleString('fr-FR')];
-      });
+      for (const group of tables[rubric] ?? []) {
+        const columns = Array.from(group.columns);
+        const rows = group.rows.filter(
+          (row) =>
+            !rowHeading(row) &&
+            columns.some(
+              (col) =>
+                calculate(col + row, data) !== undefined &&
+                group.editableColumns.includes(col),
+            ),
+        );
+        if (!rows.length) continue;
+        populated = true;
+        pdf.table(
+          `${rubric} · ${label} / ${group.title}`,
+          columns.map((col) => columnLabel(group, col)),
+          rows.map((row) =>
+            columns.map((col) => {
+              const id = col + row;
+              return (
+                labelAt(id) ||
+                format(calculate(id, data), numericCells.get(id)?.percent)
+              );
+            }),
+          ),
+        );
+      }
+      const fields = dynamicFields[rubric];
+      if (!fields) continue;
       const rows = details.filter(
         (item) => item?.rubric === rubric && Array.isArray(item.values),
       );
-      if (!entries.length && !rows.length) continue;
-      ensure(48);
-      y -= 10;
-      line(`${rubric} — ${label}`, 12);
-      entries.forEach((entry) => line(entry, 10, 8));
-      rows.forEach((item, index) => {
-        line('Ligne ' + (index + 1), 10, 8);
-        dynamicFields[rubric]?.forEach((field, j) => {
-          if (item.values[j] !== undefined && item.values[j] !== '')
-            line(field.label + ' : ' + item.values[j], 10, 16);
-        });
-      });
+      if (!rows.length) continue;
+      populated = true;
+      for (let start = 0; start < fields.length; start += 6) {
+        const subset = fields.slice(start, start + 6);
+        pdf.table(
+          `${rubric} · ${label}`,
+          ['Ligne', ...subset.map((field) => field.label)],
+          rows.map((row, index) => [
+            index + 1,
+            ...subset.map((field, j) =>
+              field.kind === 'number'
+                ? format(readNumber(row.values[start + j]))
+                : row.values[start + j] || '—',
+            ),
+          ]),
+        );
+      }
     }
-    bytes = new Uint8Array(await doc.save());
+    if (!populated) pdf.note('Aucune donnée renseignée pour cette période.');
+    bytes = new Uint8Array(await pdf.save());
   }
-  return new Response(bytes, {
-    headers: {
-      'Content-Type':
-        type === 'pdf'
-          ? 'application/pdf'
-          : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Cache-Control': 'private, no-store',
-    },
-  });
+  return attachment(bytes, filename, type);
 }

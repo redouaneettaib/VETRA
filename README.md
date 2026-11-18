@@ -14,7 +14,10 @@ Sur un environnement de recette, installer les dépendances avec `npm ci`, compi
 - Le chef de division consulte les rapports de sa division. Il peut valider un rapport soumis ou le renvoyer au chef de service en motivant la révocation. La correction peut être enregistrée plusieurs fois avant sa nouvelle soumission.
 - Le directeur régional consulte son périmètre. La direction centrale consulte la consolidation nationale. L'administrateur national gère les services, les comptes et les habilitations par rubrique.
 - Le tableau de bord distingue les services attendus, les rapports saisis et leurs statuts. Il est filtrable par région et par type de service. La consolidation prend uniquement les rapports validés du périmètre et de la période sélectionnée.
-- Les exports XLSX et PDF se téléchargent depuis la saisie ou la liste des rapports. Le partage par e-mail ou WhatsApp ouvre un message prérempli. La pièce jointe est ajoutée dans le client choisi.
+- Dans **Reporting officiel**, choisissez un rapport mensuel ou annuel, puis le périmètre global ou plusieurs régions ou services. Sélectionnez les rubriques et dépliez leurs tableaux. Un clic sur un indicateur du tableau met à jour la courbe.
+- Les courbes montrent les mois de l'année ou un historique de 3, 5 ou 10 ans. Les barres comparent les entités sélectionnées sur la période du rapport. L'absence de saisie est signalée par un tiret, tandis qu'un zéro saisi est affiché. Les taux de non-conformité ne sont pas additionnés et restent visibles lorsqu'une seule observation est disponible.
+- Les boutons **Excel** et **PDF** du reporting exportent la sélection active. Excel contient la couverture, les séries chronologiques et les feuilles par rubrique. Le PDF comprend les courbes de l'indicateur actif et les tableaux par périmètre. Le PDF mensuel depuis la saisie et la liste des rapports reprend les tableaux du canevas.
+- Le bouton **WhatsApp** prépare le PDF pour le menu de partage du téléphone si le navigateur accepte les pièces jointes. Sur les autres appareils, utilisez les liens pour télécharger le PDF et ouvrir WhatsApp, puis joignez le fichier.
 
 ## Reproduire les vérifications
 

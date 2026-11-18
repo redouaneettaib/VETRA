@@ -258,6 +258,67 @@ try {
   ).json();
   assert.equal(frontierTotals.count, 1);
   assert.equal(frontierTotals.totals.C199, undefined);
+  await db.report.createMany({
+    data: [
+      {
+        serviceId: service.id,
+        year: 2025,
+        month: 11,
+        status: 'VALIDE',
+        data: { B9: 5 },
+      },
+      {
+        serviceId: otherService.id,
+        year: 2026,
+        month: 10,
+        status: 'VALIDE',
+        data: { B9: 19 },
+      },
+    ],
+  });
+  const comparisons = `year=2026&month=11&mode=year&trend=years&group=region&id=${region.id}&id=${otherRegion.id}&rubric=I.A.1&metric=H9`;
+  const comparison = await (
+    await call(central, 'analytics?' + comparisons)
+  ).json();
+  const selected = comparison.results.find((group) => group.id === region.id);
+  assert.equal(selected.current.values.H9, 12);
+  assert.equal(selected.previous.values.H9, 5);
+  assert.equal(
+    comparison.results.find((group) => group.id === otherRegion.id).current
+      .values.H9,
+    19,
+  );
+  assert.equal(
+    comparison.results.find((group) => group.id === otherRegion.id).current
+      .count,
+    1,
+  );
+  await call(provincial, 'analytics?' + comparisons, undefined, 403);
+  await call(
+    provincial,
+    'analytics/export?' + comparisons + '&type=pdf',
+    undefined,
+    403,
+  );
+  const scoped = await (
+    await call(provincial, 'analytics?year=2026&month=11&rubric=I.A.1')
+  ).json();
+  assert.equal(scoped.results[0].services, 1);
+  assert.equal(scoped.results[0].current.values.H9, 12);
+  const reportingBook = new ExcelJS.Workbook();
+  await reportingBook.xlsx.load(
+    await (
+      await call(central, 'analytics/export?' + comparisons + '&type=xlsx')
+    ).arrayBuffer(),
+  );
+  assert.ok(reportingBook.getWorksheet('I.A.1'));
+  assert.ok(!reportingBook.getWorksheet('VI.B'));
+  const reportingPdf = await PDFDocument.load(
+    await (
+      await call(central, 'analytics/export?' + comparisons + '&type=pdf')
+    ).arrayBuffer(),
+  );
+  assert.ok(reportingPdf.getPageCount());
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(
     await (
