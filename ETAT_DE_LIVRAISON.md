@@ -15,10 +15,12 @@ La version est issue du commit `e4528f3b2c4059ee5f23b7db35170d07e90872c7` de `re
 ## Vérifications
 
 - Compilation de production Next.js et contrôle TypeScript réussis.
-- 10 tests automatisés réussis, dont le contenu des exports PDF et XLSX.
+- 14 tests automatisés réussis, dont la comparaison par période, le calcul des séries, les valeurs absentes, les taux et les exports PDF/XLSX.
 - Parcours fonctionnel réussi sur PostgreSQL 18 avec cinq profils, un service provincial et un service frontalier. Le scénario vérifie l'isolation des accès, les habilitations, les conflits d'écriture, la révocation, les corrections successives, la validation, le journal et la consolidation.
 - Parcours de saisie vérifié dans une simulation DOM de l'interface React connectée au serveur de recette. La vérification inclut les logos servis, la navigation progressive, les totaux, la saisie d'un foyer TIAC et la consultation en lecture seule après soumission. Chromium local est bloqué par les restrictions de l'environnement. Le rendu visuel en navigateur reste à vérifier.
 
 Le workflow de recette utilise des comptes fictifs et une base PostgreSQL locale jetable. Les comptes et rapports de production n'ont fait l'objet d'aucune opération. Les tests de connexion ont utilisé le mode local sans OTP. La réception d'un OTP via le SMTP de l'installation et la compatibilité avec ses données réelles ne font donc pas partie de cette vérification.
+
+Les contrôles du nouveau reporting ont vérifié les refus d’accès à la consultation et à l’export hors périmètre. Une simulation DOM de l'interface React a vérifié le passage au rapport annuel, la sélection de deux régions, les courbes, la sélection des rubriques, les liens d’export et le repli WhatsApp. L’envoi réel vers WhatsApp dépend du navigateur et de l’application installée.
 
 Aucun déploiement ni envoi de code sur GitHub n'a été effectué.

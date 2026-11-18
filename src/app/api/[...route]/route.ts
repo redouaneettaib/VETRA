@@ -20,6 +20,8 @@ import {
   numericCells,
   readNumber,
 } from '@/lib/forms';
+import { analyze, parseFilters } from '@/lib/analytics';
+import { exportAnalysis } from '@/lib/reporting-export';
 import { exportReport } from '@/lib/exports';
 export const runtime = 'nodejs';
 type Input = Record<string, any>;
@@ -599,6 +601,73 @@ async function handle(
         orderBy: { createdAt: 'asc' },
       }),
     );
+  }
+  if (
+    method === 'GET' &&
+    (path === 'analytics' || path === 'analytics/export')
+  ) {
+    const params = req.nextUrl.searchParams;
+    let filters;
+    try {
+      filters = parseFilters(params);
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : 'Filtres invalides');
+    }
+    const scope = await allowedServices(u);
+    const scoped = await db.service.findMany({
+      where: { id: { in: scope } },
+      select: {
+        id: true,
+        name: true,
+        division: { select: { region: { select: { id: true, name: true } } } },
+      },
+    });
+    const services = scoped.map(({ division, ...service }) => ({
+      ...service,
+      region: division.region,
+    }));
+    const eligible =
+      filters.group === 'all'
+        ? services
+        : services.filter((service) =>
+            filters.ids.includes(
+              filters.group === 'region' ? service.region.id : service.id,
+            ),
+          );
+    if (
+      filters.group !== 'all' &&
+      filters.ids.some(
+        (id) =>
+          !eligible.some(
+            (service) =>
+              (filters.group === 'region' ? service.region.id : service.id) ===
+              id,
+          ),
+      )
+    )
+      return fail('Périmètre non autorisé', 403);
+    const reports = await db.report.findMany({
+      where: {
+        status: 'VALIDE',
+        serviceId: { in: eligible.map((service) => service.id) },
+        year: {
+          gte: Math.max(
+            1900,
+            filters.year - (filters.trend === 'years' ? filters.span - 1 : 1),
+          ),
+          lte: filters.year,
+        },
+      },
+      select: { serviceId: true, year: true, month: true, data: true },
+    });
+    const analysis = analyze(filters, eligible, reports);
+    if (path === 'analytics')
+      return Response.json(analysis, {
+        headers: { 'Cache-Control': 'private, no-store' },
+      });
+    const type = params.get('type');
+    if (type !== 'xlsx' && type !== 'pdf') return fail('Format inconnu');
+    return exportAnalysis(analysis, type);
   }
   if (path === 'reporting') {
     const scope = await allowedServices(u),
