@@ -1,41 +1,36 @@
 # VETRA — ONSSA / DPA
 
-Projet source Next.js 15 + TypeScript + Tailwind CSS + PostgreSQL/Prisma, construit sur la **feuille CASA** du classeur transmis. Les 20 rubriques I.A.1 à VI.B sont présentes dans `src/lib/canevas.ts`, les lignes et libellés réels dans `src/lib/casa.json`.
+VETRA gère les rapports mensuels des services vétérinaires provinciaux et frontaliers. Cette version reprend le dépôt `redouaneettaib/VETRA`, branche `main` au commit `e4528f3b2c4059ee5f23b7db35170d07e90872c7`, et le canevas `CASA` de son classeur original. Les logos ONSSA et VETRA fournis sont affichés à la connexion, dans le portail et dans le PDF.
 
-## Préparation
+## Utiliser une installation existante
 
-1. Installer Node.js 20+ et PostgreSQL 15+.
-2. Copier `.env.example` vers `.env`. Définir `DATABASE_URL`, `SESSION_SECRET` (32 caractères minimum) et `SEED_ADMIN_PASSWORD` (12 caractères minimum).
-3. `npm install`
-4. `npx prisma migrate dev --name init`
-5. `npm run db:seed`
-6. `npm run dev` puis ouvrir `http://localhost:3000`.
+Conserver la configuration de l'installation, notamment `DATABASE_URL`, `SESSION_SECRET`, les réglages OTP et SMTP. Le schéma Prisma est identique à celui du dépôt source. Cette version ne requiert aucune migration ou initialisation de la base existante. Elle reprend les comptes, rattachements, habilitations, rapports et journaux via le même schéma.
 
-Le seed crée les 12 directions régionales, leurs 12 divisions et un compte administrateur. **Il ne crée aucun service ni aucune donnée métier fictive.** L'administrateur doit créer les services et les utilisateurs avec leurs véritables rattachements.
+Sur un environnement de recette, installer les dépendances avec `npm ci`, compiler avec `npm run build` et démarrer avec `npm start`. Utiliser une instance PostgreSQL de recette et les réglages de recette. Le seed sert à initialiser une base neuve. Le code de connexion utilise SMTP si `REQUIRE_LOGIN_OTP` est activé ou absent.
 
-## Modules inclus
+## Utiliser le portail
 
-- Connexion par e-mail et mot de passe, sessions HTTP-only ; OTP par e-mail activé sauf `REQUIRE_LOGIN_OTP=false` (réservé aux tests).
-- Réinitialisation du mot de passe via OTP et SMTP.
-- Administration des services, utilisateurs et habilitations par rubrique.
-- Saisie par cartes des 20 rubriques CASA, sauvegarde et workflow sur le rapport complet.
-- Tableaux de bord par périmètre, reporting consolidé uniquement sur les rapports validés.
-- Exports XLSX et PDF téléchargeables ; boutons de partage qui ouvrent e-mail / WhatsApp avec message prérempli (les pièces jointes doivent être ajoutées manuellement).
+- Le chef de service renseigne les rubriques habilitées dans l’ordre du canevas. « Enregistrer et continuer » valide l’étape et ouvre la suivante. Les rubriques déjà enregistrées restent modifiables tant que le rapport est ouvert.
+- Le chef de division consulte les rapports de sa division. Il peut valider un rapport soumis ou le renvoyer au chef de service en motivant la révocation. La correction peut être enregistrée plusieurs fois avant sa nouvelle soumission.
+- Le directeur régional consulte son périmètre. La direction centrale consulte la consolidation nationale. L'administrateur national gère les services, les comptes et les habilitations par rubrique.
+- Le tableau de bord distingue les services attendus, les rapports saisis et leurs statuts. Il est filtrable par région et par type de service. La consolidation prend uniquement les rapports validés du périmètre et de la période sélectionnée.
+- Les exports XLSX et PDF se téléchargent depuis la saisie ou la liste des rapports. Le partage par e-mail ou WhatsApp ouvre un message prérempli. La pièce jointe est ajoutée dans le client choisi.
 
-## Limites connues — ne pas considérer comme prêt pour production
+## Reproduire les vérifications
 
-- Le XLSX est **reconstitué à partir des valeurs et positions de CASA** : les styles originaux, cellules fusionnées et formules complexes ne sont pas encore préservés.
-- Le PDF est fonctionnel mais utilise une police standard qui ne reproduit pas correctement les accents français ; intégrer une police Unicode avant production.
-- Les tableaux TIAC et retrait/rappel reprennent les lignes du canevas, mais l'ajout dynamique de lignes non prévues dans Excel reste à développer.
-- Les sous-tableaux I.B.1 sont séparés par des intitulés, mais pas encore par trois composants de saisie indépendants.
-- Le partage sécurisé de documents par lien temporaire et l'envoi automatique de pièces jointes ne sont pas implémentés.
-- L'écran d'administration ne permet pas encore de modifier ou désactiver toutes les entités existantes.
-- Les tests d'intégration et le démarrage avec PostgreSQL **n'ont pas été exécutés dans cet environnement**, faute de serveur PostgreSQL et d'installation npm aboutie.
+Prérequis locaux utilisés pour la recette de code — Node.js 24 et PostgreSQL 18. `npm test` vérifie les formulaires, les formules et le contenu des exports. Ces tests ne nécessitent pas de base.
 
-## Sécurité
+Le parcours fonctionnel s'exécute contre un PostgreSQL local avec une base jetable vide nommée `vetra_test`. Les variables ci-dessous concernent exclusivement cette recette locale. Adapter le port, le nom d'utilisateur et le mot de passe à l'instance de test.
 
-Les autorisations de lecture/écriture sont contrôlées dans l'API. Le compte national ne peut pas valider les rapports. Le chef de division ne peut pas modifier les chiffres. Les mots de passe sont hachés avec bcrypt. Les sessions sont signées. Avant usage réel, prévoir HTTPS, politique de sauvegarde, limitation de tentatives de connexion, audit externe et revue de sécurité.
+```sh
+export DATABASE_URL=postgresql://vetra_test:local@127.0.0.1:55432/vetra_test
+export SESSION_SECRET=vetra-session-locale-pour-tests-seulement
+export REQUIRE_LOGIN_OTP=false
+npm ci
+npx prisma db push
+npm run build
+npm test
+npm start -- -p 3100
+```
 
-## GitHub
-
-Le projet peut être déposé dans `redouaneettaib/VETRA`. GitHub est le dépôt du **code source** ; aucun déploiement n'est nécessaire pour importer les fichiers. Ne jamais commiter `.env`.
+Dans un autre terminal, avec la même `DATABASE_URL`, exécuter `node tests/functional.mjs`. Le scénario crée et nettoie ses propres données de test. Il couvre les rôles, les habilitations, la modification concurrente, le journal, le workflow et les exports.
