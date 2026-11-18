@@ -319,6 +319,44 @@ try {
     ).arrayBuffer(),
   );
   assert.ok(reportingPdf.getPageCount());
+  await call(
+    provincial,
+    'export/email?id=' + report.id,
+    { recipient: 'first@example.invalid,second@example.invalid' },
+    400,
+  );
+  await call(
+    frontalier,
+    'export/email?id=' + report.id,
+    { recipient: 'vetra-test@example.invalid' },
+    403,
+  );
+  await call(
+    provincial,
+    'analytics/email?' + comparisons,
+    { recipient: 'vetra-test@example.invalid' },
+    403,
+  );
+  await call(
+    null,
+    'export/email?id=' + report.id,
+    { recipient: 'vetra-test@example.invalid' },
+    401,
+  );
+  if (process.env.VETRA_TEST_SMTP_CAPTURE === 'true') {
+    const monthly = await (
+      await call(provincial, 'export/email?id=' + report.id, {
+        recipient: 'vetra-test@example.invalid',
+      })
+    ).json();
+    assert.equal(monthly.sent, true);
+    const analytics = await (
+      await call(central, 'analytics/email?' + comparisons, {
+        recipient: 'vetra-test@example.invalid',
+      })
+    ).json();
+    assert.equal(analytics.sent, true);
+  }
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(
     await (

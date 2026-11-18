@@ -12,7 +12,7 @@ export async function pdfTables(title: string, subtitle: string) {
     asset('DejaVuSans.ttf').then((bytes) =>
       doc.embedFont(bytes, { subset: true }),
     ),
-    asset('ONSSA_officiel.jpg').then((bytes) => doc.embedJpg(bytes)),
+    asset('onssa-transparent.png').then((bytes) => doc.embedPng(bytes)),
     asset('VETRA_officiel.jpg').then((bytes) => doc.embedJpg(bytes)),
   ]);
   const ink = rgb(0.06, 0.17, 0.27),
