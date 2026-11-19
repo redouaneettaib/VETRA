@@ -101,6 +101,10 @@ export default function Home() {
   }, []);
   useEffect(() => {
     if (!me) return;
+    setTab(me.user.role === 'ADMIN_NATIONAL' ? 'admin' : 'dashboard');
+  }, [me?.user.id]);
+  useEffect(() => {
+    if (!me) return;
     let active = true;
     api(`reports?year=${year}&month=${month}`)
       .then((r) => {
