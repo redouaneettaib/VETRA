@@ -121,7 +121,7 @@ button:disabled {
 }
 .brand img {
   width: 45%;
-  height: 43px;
+  height: 3.7rem;
   object-fit: contain;
 }
 .scroll td:first-child {
@@ -331,4 +331,121 @@ input:disabled {
   width: 100%;
   border-radius: 0.3rem 0.3rem 0 0;
   background: linear-gradient(#5d9ad8, #145987);
+}
+
+.vetra-cover-login .brand img {
+  height: clamp(4.25rem, 6vw, 5.8rem);
+}
+.vetra-cover-photo {
+  overflow: hidden;
+  container-type: size;
+}
+.vetra-cover-frame {
+  --frame-width: max(100cqw, 177.7778cqh);
+  --frame-height: max(56.25cqw, 100cqh);
+  position: absolute;
+  width: var(--frame-width);
+  height: var(--frame-height);
+  left: calc((100cqw - var(--frame-width)) * 0.33);
+  top: calc((100cqh - var(--frame-height)) * 0.5);
+}
+.vetra-cover-photo::after {
+  pointer-events: none;
+}
+.vetra-cover-frame img {
+  object-fit: fill;
+}
+.vetra-product-tag {
+  position: absolute;
+  z-index: 1;
+  transform: translate(-50%, -100%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.21rem 0.55rem;
+  border: 1px solid #fff9;
+  border-radius: 0.45rem;
+  background: #123a50ee;
+  color: white;
+  box-shadow: 0 2px 10px #102a4350;
+  font-size: clamp(0.68rem, 1.2vw, 0.86rem);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.vetra-product-tag::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 3px);
+  bottom: -4px;
+  width: 7px;
+  height: 7px;
+  background: #123a50;
+  transform: rotate(45deg);
+}
+.vetra-tag-milk {
+  left: 40.4%;
+  top: 58%;
+}
+.vetra-tag-honey {
+  left: 45.8%;
+  top: 71%;
+}
+.vetra-tag-cheese {
+  left: 34.4%;
+  top: 76.7%;
+}
+@media (max-width: 960px) {
+  .vetra-cover {
+    align-items: end;
+    justify-items: center;
+    padding-top: calc(clamp(15rem, 65vw, 25rem) + 1rem);
+  }
+  .vetra-cover-frame {
+    --frame-width: max(100cqw, calc(clamp(15rem, 65vw, 25rem) * 1.777778));
+    --frame-height: calc(var(--frame-width) * 0.5625);
+    top: 0;
+    left: 0;
+  }
+  .vetra-cover-photo {
+    background: #bacbd6;
+  }
+}
+.vetra-action-icon {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 0.65rem;
+  transition:
+    filter 0.15s,
+    transform 0.15s;
+}
+.vetra-action-icon:hover {
+  filter: saturate(1.4);
+  transform: translateY(-1px);
+}
+.vetra-kpis button.vetra-kpi {
+  text-align: left;
+  transition:
+    box-shadow 0.16s,
+    transform 0.16s;
+}
+.vetra-kpis button.vetra-kpi:hover {
+  box-shadow: 0 8px 22px #12365018;
+  transform: translateY(-2px);
+}
+.vetra-kpis button.vetra-kpi[aria-pressed='true'] {
+  outline: 2px solid var(--tone);
+  outline-offset: 1px;
+}
+.vetra-rubric-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  color: var(--tone);
+  background: var(--tone-soft);
+  border-radius: 0.55rem;
 }

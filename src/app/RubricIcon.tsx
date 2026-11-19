@@ -48,10 +48,27 @@ const icons = {
 export default function RubricIcon({
   id,
   size = 19,
+  colored = false,
 }: {
   id: string;
   size?: number;
+  colored?: boolean;
 }) {
   const Icon = icons[id as RubricId] ?? ClipboardCheck;
-  return <Icon size={size} aria-hidden="true" className="shrink-0" />;
+  const icon = <Icon size={size} aria-hidden="true" className="shrink-0" />;
+  if (!colored) return icon;
+  const tone = id.startsWith('VI.')
+    ? 'violet'
+    : id === 'I.D' || id === 'II.C'
+      ? 'rose'
+      : id.startsWith('I.A')
+        ? 'green'
+        : id.startsWith('I.B')
+          ? 'amber'
+          : 'blue';
+  return (
+    <span aria-hidden="true" className={`vetra-rubric-icon vetra-kpi-${tone}`}>
+      {icon}
+    </span>
+  );
 }

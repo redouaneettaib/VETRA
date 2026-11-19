@@ -82,13 +82,18 @@ export default function LoginScreen({
   return (
     <main className="vetra-cover">
       <div className="vetra-cover-photo" aria-hidden="true">
-        <img
-          src="/inspection-onssa.webp"
-          width="1600"
-          height="900"
-          fetchPriority="high"
-          alt=""
-        />
+        <div className="vetra-cover-frame">
+          <img
+            src="/inspection-onssa.webp"
+            width="1600"
+            height="900"
+            fetchPriority="high"
+            alt=""
+          />
+          <span className="vetra-product-tag vetra-tag-milk">Lait</span>
+          <span className="vetra-product-tag vetra-tag-honey">Miel</span>
+          <span className="vetra-product-tag vetra-tag-cheese">Fromage</span>
+        </div>
       </div>
       <section
         className="vetra-cover-login"

@@ -462,6 +462,65 @@ try {
       'OTP par SMTP, Réinitialisation et rejet des codes réutilisés vérifiés.',
     );
   }
+  const newAdminPassword = 'Vetra-Compte-Nouveau-2026';
+  const change = {
+    currentPassword: admin.password,
+    password: newAdminPassword,
+  };
+  await call(null, 'password/change', change, 401);
+  await call(
+    admin,
+    'password/change',
+    { ...change, currentPassword: 'incorrect' },
+    400,
+  );
+  await call(
+    admin,
+    'password/change',
+    { ...change, password: admin.password },
+    400,
+  );
+  await call(
+    admin,
+    'password/change',
+    { ...change, password: 'é'.repeat(37) },
+    400,
+  );
+  const changed = await (await call(admin, 'password/change', change)).json();
+  assert.equal(changed.ok, true);
+  await call(admin, 'me');
+  await call(
+    null,
+    'login',
+    { email: admin.email, password: admin.password },
+    401,
+  );
+  const relogged = await loginWithTestAccount({
+    email: admin.email,
+    password: newAdminPassword,
+  });
+  assert.ok(relogged.headers.get('set-cookie'));
+
+  await action(central, 'revoquer', 400);
+  await action(frontalier, 'revoquer', 403, 'Hors périmètre');
+  const revoked = await (
+    await action(central, 'revoquer', 200, ' Motif de la direction centrale ')
+  ).json();
+  assert.equal(revoked.status, 'REVOQUE');
+  assert.equal(revoked.reason, 'Motif de la direction centrale');
+  const centralEvent = (
+    await (await call(chef, 'events?id=' + report.id)).json()
+  ).at(-1);
+  assert.equal(centralEvent.oldStatus, 'VALIDE');
+  assert.equal(centralEvent.newStatus, 'REVOQUE');
+  const afterRevocation = await (
+    await call(central, 'analytics?year=2026&month=11')
+  ).json();
+  assert.equal(afterRevocation.operational.validated, 0);
+  assert.equal(afterRevocation.operational.correction, 1);
+  console.log(
+    'Changement de mot de passe authentifié et révocation centrale auditée vérifiés.',
+  );
   await call(provincial, 'logout', {});
   console.log(
     'VETRA : parcours PostgreSQL, cinq profils, deux services, workflow, droits, audit et exports validés.',

@@ -18,6 +18,12 @@ Docker Compose active l’OTP par défaut. Si l’environnement de production co
 
 ## Utiliser le portail
 
+- La cloche ouvre la liste des rapports non validés pour le mois et l’année sélectionnés, dans le périmètre du compte. Le compteur inclut les brouillons, soumis, révoqués et corrigés existants.
+- **Administration** ouvre quatre vues distinctes : Organisation, Services, Comptes utilisateurs et Habilitations.
+- Le menu du compte propose **Modifier mon mot de passe**. Le mot de passe actuel et la confirmation du nouveau sont requis. La session en cours reste ouverte.
+- La **Direction centrale** peut révoquer un rapport soumis ou validé. Le motif est obligatoire et figure dans l’historique. Un rapport révoqué suit le parcours habituel de correction et de nouvelle validation.
+
+
 - Le chef de service renseigne les rubriques habilitées dans l’ordre du canevas. « Enregistrer et continuer » valide l’étape et ouvre la suivante. Les rubriques déjà enregistrées restent modifiables tant que le rapport est ouvert.
 - Le chef de division consulte les rapports de sa division. Il peut valider un rapport soumis ou le renvoyer au chef de service en motivant la révocation. La correction peut être enregistrée plusieurs fois avant sa nouvelle soumission.
 - Le directeur régional consulte son périmètre. La direction centrale consulte la consolidation nationale. L'administrateur national gère les services, les comptes et les habilitations par rubrique.
