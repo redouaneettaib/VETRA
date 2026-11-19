@@ -14,9 +14,14 @@ Pour l'envoi d'e-mails, renseigner côté serveur `SMTP_HOST`, `SMTP_FROM` et au
 
 La page de garde utilise une photo en filigrane plein écran. L’identification se fait avec le mot de passe, puis le code OTP transmis par e-mail. Le code est valable 10 minutes et accepte jusqu’à cinq tentatives de vérification. Le lien « Mot de passe oublié ? » permet de choisir et confirmer un nouveau mot de passe avec un code de réinitialisation dédié.
 
-Docker Compose active l’OTP par défaut. Si l’environnement de production contient déjà `REQUIRE_LOGIN_OTP=false`, remplacez cette valeur par `REQUIRE_LOGIN_OTP=true` une fois le SMTP opérationnel. Les variables d’envoi sont communes aux codes et aux rapports.
+Docker Compose active l’OTP par défaut. Si l’environnement de production contient déjà `REQUIRE_LOGIN_OTP=false`, remplacez cette valeur par `REQUIRE_LOGIN_OTP=true` une fois le SMTP opérationnel. Les variables d’envoi sont communes aux codes et aux rapports. Sur Vercel, ouvrir **Settings → Environment Variables**, appliquer les variables à **Production**, puis redéployer pour appliquer les changements. Vérifier que le SMTP est opérationnel avant d’activer l’OTP sur le site en service.
 
 ## Utiliser le portail
+
+- Les huit indicateurs du **Tableau de bord** sont répartis sur deux rangées de quatre sur grand écran. La carte du Maroc colore les régions selon la proportion de services disposant d’un rapport saisi pour le mois sélectionné. L’écart en points utilise le même périmètre de services pour le mois précédent. Une région hors périmètre ne fournit aucun taux.
+- La cloche présente une ventilation des rapports non validés par statut. Le lien en bas du panneau ouvre la liste filtrée pour la période sélectionnée.
+- Les données de la carte proviennent de [morocco-map 1.3.0](https://github.com/yousfiSaad/morocco-map) de Saad Yousfi, sous [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Le TopoJSON d’origine est fourni dans `public/cartographie/regions-maroc.topo.json`. Les contours projetés et simplifiés sont dans `src/lib/regions-maroc.json` sous la même licence.
+
 
 - La cloche ouvre la liste des rapports non validés pour le mois et l’année sélectionnés, dans le périmètre du compte. Le compteur inclut les brouillons, soumis, révoqués et corrigés existants.
 - **Administration** ouvre quatre vues distinctes : Organisation, Services, Comptes utilisateurs et Habilitations.

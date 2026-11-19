@@ -7,12 +7,10 @@ import {
   Settings,
   LogOut,
   ShieldCheck,
-  BellRing,
   Eye,
   FileSpreadsheet,
   FileText,
   Building2,
-  ListChecks,
   CircleDashed,
   Pencil,
   Send,
@@ -30,6 +28,8 @@ import ReportEmail from './ReportEmail';
 import LoginScreen from './LoginScreen';
 import PasswordChange from './PasswordChange';
 import RubricIcon from './RubricIcon';
+import RegionalMap from './RegionalMap';
+import ReportNotifications from './ReportNotifications';
 import { enabledRubrics, rubricIds } from '@/lib/forms';
 
 function Brand() {
@@ -411,24 +411,17 @@ export default function Home() {
               </div>
             )}
             {periodReady && (
-              <button
-                type="button"
-                aria-label={`${unvalidatedReports.length} rapports non validés pour la période`}
-                title={`${unvalidatedReports.length} rapports non validés · ${String(month).padStart(2, '0')}/${year}`}
-                className="relative grid place-items-center h-11 w-11 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                onClick={() => {
+              <ReportNotifications
+                statusesToReview={unvalidatedReports.map((report) =>
+                  String(report.status),
+                )}
+                month={month}
+                year={year}
+                onOpen={() => {
                   setUnvalidatedOnly(true);
                   setTab('rapports');
                 }}
-              >
-                <BellRing size={21} aria-hidden="true" />
-                <span
-                  aria-hidden="true"
-                  className="absolute -top-2 -right-2 min-w-6 rounded-full bg-amber-500 px-1 text-center text-xs leading-5 font-bold text-slate-950"
-                >
-                  {unvalidatedReports.length}
-                </span>
-              </button>
+              />
             )}
           </div>
         </header>
@@ -469,7 +462,7 @@ export default function Home() {
                   ))}
               </select>
             </div>
-            <div className="vetra-kpis">
+            <div className="vetra-dashboard-kpis vetra-kpis">
               {[
                 {
                   label: 'Services attendus',
@@ -521,13 +514,6 @@ export default function Home() {
                   Icon: RotateCcw,
                 },
                 {
-                  label: 'Corrigés',
-                  count: cards.CORRIGE,
-                  key: 'CORRIGE',
-                  tone: 'amber',
-                  Icon: ListChecks,
-                },
-                {
                   label: 'Taux de validation',
                   count: dashboardServices.length
                     ? Math.round(
@@ -558,6 +544,21 @@ export default function Home() {
                 </button>
               ))}
             </div>
+            <RegionalMap
+              regions={org.regions}
+              services={org.services.filter(
+                (item: Any) => !serviceKind || item.kind === serviceKind,
+              )}
+              recorded={new Set(reportByService.keys())}
+              year={year}
+              month={month}
+              identity={me.user.id}
+              selected={regionFilter}
+              onSelect={(id) => {
+                setRegionFilter(id);
+                setStatusFilter('TOUS');
+              }}
+            />
             <div className="panel">
               <h2 className="font-bold text-lg mb-3">
                 Services concernés — {statusFilter}
@@ -1244,11 +1245,13 @@ export default function Home() {
                     </option>
                   ))}
                 </select>
-                <div className="grid md:grid-cols-4 gap-2 mt-3">
+                <div className="vetra-rights-grid mt-4">
                   {canevas.rubrics.map(([id, _a, _b, label]: any) => (
-                    <label key={id} className="flex items-center gap-2 text-sm">
+                    <label key={id} className="vetra-rights-label">
                       <input
                         type="checkbox"
+                        className="vetra-rights-checkbox"
+                        disabled={!service || busy}
                         checked={enabled(id)}
                         onChange={(e) => {
                           setOrg((o: Any) => ({
@@ -1272,7 +1275,9 @@ export default function Home() {
                           }));
                         }}
                       />
-                      {id} {label}
+                      <span>
+                        <strong>{id}</strong> {label}
+                      </span>
                     </label>
                   ))}
                 </div>

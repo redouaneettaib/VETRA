@@ -513,6 +513,10 @@ try {
   ).at(-1);
   assert.equal(centralEvent.oldStatus, 'VALIDE');
   assert.equal(centralEvent.newStatus, 'REVOQUE');
+  const summary = await (
+    await call(provincial, 'reports?year=2026&month=11&summary=1')
+  ).json();
+  assert.deepEqual(summary, [{ serviceId: service.id }]);
   const afterRevocation = await (
     await call(central, 'analytics?year=2026&month=11')
   ).json();
