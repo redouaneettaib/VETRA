@@ -246,6 +246,32 @@ async function handle(
     return Response.json({ ok: true });
   }
   if (!u || !u.active) return fail('Connexion requise', 401);
+  if (path === 'password/change' && method === 'POST') {
+    const { currentPassword, password } = body;
+    if (
+      typeof currentPassword !== 'string' ||
+      typeof password !== 'string' ||
+      password.length < 12 ||
+      Buffer.byteLength(password, 'utf8') > 72
+    )
+      return fail(
+        'Le nouveau mot de passe doit contenir au moins 12 caractères et ne pas dépasser 72 octets.',
+      );
+    if (!(await bcrypt.compare(currentPassword, u.passwordHash)))
+      return fail('Mot de passe actuel incorrect.', 400);
+    if (await bcrypt.compare(password, u.passwordHash))
+      return fail(
+        'Choisissez un mot de passe différent du mot de passe actuel.',
+      );
+    const passwordHash = await bcrypt.hash(password, 12);
+    const changed = await db.user.updateMany({
+      where: { id: u.id, active: true, passwordHash: u.passwordHash },
+      data: { passwordHash },
+    });
+    return changed.count === 1
+      ? Response.json({ ok: true })
+      : fail('Le compte a changé entre-temps. Réessayez.', 409);
+  }
   if (path === 'logout' && method === 'POST') {
     await clearSession();
     return Response.json({ ok: true });
@@ -656,14 +682,26 @@ async function handle(
         );
       status = 'SOUMIS';
     } else if (action === 'valider' || action === 'revoquer') {
-      if (
-        u.role !== 'CHEF_DIVISION' ||
-        u.divisionId !== report.service.divisionId ||
-        report.status !== 'SOUMIS'
-      )
-        return fail('Validation non autorisée', 403);
+      const divisionCanDecide =
+        u.role === 'CHEF_DIVISION' &&
+        u.divisionId === report.service.divisionId &&
+        report.status === 'SOUMIS';
+      const centralCanRevoke =
+        action === 'revoquer' &&
+        u.role === 'DIRECTION_CENTRALE' &&
+        ['SOUMIS', 'VALIDE'].includes(report.status);
+      if (!divisionCanDecide && !centralCanRevoke)
+        return fail(
+          action === 'valider'
+            ? 'Validation non autorisée'
+            : 'Révocation non autorisée',
+          403,
+        );
       status = action === 'valider' ? 'VALIDE' : 'REVOQUE';
-      if (status === 'REVOQUE' && !String(body.reason || '').trim())
+      if (
+        status === 'REVOQUE' &&
+        (typeof body.reason !== 'string' || !body.reason.trim())
+      )
         return fail('Motif de révocation obligatoire');
     } else return fail('Action inconnue');
     const updated = await db.$transaction(async (tx) => {
@@ -675,7 +713,7 @@ async function handle(
         },
         data: {
           status,
-          reason: status === 'REVOQUE' ? String(body.reason) : null,
+          reason: status === 'REVOQUE' ? body.reason.trim() : null,
         },
       });
       if (result.count !== 1) return null;
@@ -686,7 +724,7 @@ async function handle(
           action,
           oldStatus: report.status,
           newStatus: status,
-          reason: status === 'REVOQUE' ? String(body.reason) : null,
+          reason: status === 'REVOQUE' ? body.reason.trim() : null,
         },
       });
       return tx.report.findUnique({ where: { id: report.id } });

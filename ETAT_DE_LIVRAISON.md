@@ -26,3 +26,5 @@ Les contrôles du nouveau reporting ont vérifié les refus d’accès à la con
 Aucun déploiement ni envoi de code sur GitHub n'a été effectué.
 
 La mise à jour de l’interface a été vérifiée avec un parcours PostgreSQL et SMTP local, OTP actif. Le test vérifie la connexion par code à usage unique, la réinitialisation, le rejet de l’ancien mot de passe et les pièces jointes PDF. La simulation DOM vérifie le parcours de connexion et les filtres de reporting. Le déploiement et le SMTP de production restent à vérifier.
+
+Mise à jour tableau de bord et administration : compilation, 16 tests automatisés et parcours PostgreSQL/SMTP avec OTP réussis. Le test vérifie la modification authentifiée du mot de passe, la révocation nationale et la mise à jour des indicateurs. Une simulation de l’interface React a vérifié le compteur, la liste filtrée, les onglets ADMIN et les actions par icône. Le rendu visuel n’a pas été contrôlé sur un navigateur graphique.

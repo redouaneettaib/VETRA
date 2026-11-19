@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
-import { Activity, CalendarDays, Download } from 'lucide-react';
+import {
+  Activity,
+  CalendarDays,
+  FileSpreadsheet,
+  FileText,
+} from 'lucide-react';
 import {
   format,
   months,
@@ -310,18 +315,20 @@ export default function Reporting({
         {analysis && (
           <div className="flex flex-wrap items-start gap-2">
             <a
-              className="btn alt inline-flex items-center gap-2"
+              className="vetra-action-icon text-emerald-800 bg-emerald-50"
               href={exportUrl('xlsx')}
+              aria-label="Télécharger en Excel (XLSX)"
+              title="Télécharger en Excel (XLSX)"
             >
-              <Download size={16} />
-              Excel
+              <FileSpreadsheet size={19} aria-hidden="true" />
             </a>
             <a
-              className="btn alt inline-flex items-center gap-2"
+              className="vetra-action-icon text-rose-800 bg-rose-50"
               href={exportUrl('pdf')}
+              aria-label="Télécharger en PDF"
+              title="Télécharger en PDF"
             >
-              <Download size={16} />
-              PDF
+              <FileText size={19} aria-hidden="true" />
             </a>
             <div className="text-navy">
               <ReportEmail
