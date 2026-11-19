@@ -58,3 +58,9 @@ npm start -- -p 3100
 ```
 
 Dans un autre terminal, avec la même `DATABASE_URL`, exécuter `node tests/functional.mjs`. Le scénario crée et nettoie ses propres données de test. Il couvre les rôles, les habilitations, la modification concurrente, le journal, le workflow et les exports.
+
+### OTP sur Railway sans SMTP
+
+Railway Free interdit le SMTP sortant. Pour utiliser Resend en HTTPS, renseigner `RESEND_API_KEY` et `RESEND_FROM` dans les variables du service web VETRA. Avec une clé Resend, VETRA utilise HTTPS pour les OTP, la réinitialisation et les PDF par e-mail. Sans clé Resend, le SMTP existant reste disponible.
+
+Tester d'abord la réception sur l'adresse du compte Resend avec `RESEND_FROM=VETRA <onboarding@resend.dev>`, en gardant `REQUIRE_LOGIN_OTP=false`. Pour les autres destinataires, vérifier un domaine d'expédition dans Resend, puis utiliser une adresse de ce domaine comme expéditeur. Après avoir vérifié l'envoi, définir `REQUIRE_LOGIN_OTP=true` et déployer les changements Railway.
