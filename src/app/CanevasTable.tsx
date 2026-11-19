@@ -115,7 +115,7 @@ export default function CanevasTable({
         >
           <h3 className="font-bold bg-slate-100 px-4 py-3">{group.title}</h3>
           <div className="scroll">
-            <table>
+            <table className="vetra-data-table">
               <thead>
                 <tr>
                   {Array.from(group.columns).map((column) => (
@@ -148,9 +148,19 @@ export default function CanevasTable({
                             </td>
                           );
                         if (!field)
-                          return <td key={address}>{labelAt(address)}</td>;
+                          return (
+                            <td
+                              key={address}
+                              data-label={columnLabel(group, column)}
+                            >
+                              {labelAt(address)}
+                            </td>
+                          );
                         return (
-                          <td key={address}>
+                          <td
+                            key={address}
+                            data-label={columnLabel(group, column)}
+                          >
                             <input
                               aria-label={field.label}
                               disabled={!editable}
