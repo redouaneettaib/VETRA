@@ -150,6 +150,8 @@ export default function Home() {
       .map((r) => [r.serviceId, r]),
   );
   const [adminSection, setAdminSection] = useState('organisation');
+  const [editingUserId, setEditingUserId] = useState('');
+  const editingUser = org.users.find((user: Any) => user.id === editingUserId);
   const [unvalidatedOnly, setUnvalidatedOnly] = useState(false);
   const unvalidatedReports = periodReady
     ? reports.filter((report) => report.status !== 'VALIDE')
@@ -1167,28 +1169,45 @@ export default function Home() {
             )}
             {adminSection === 'comptes' && (
               <div className="panel">
-                <h2 className="font-bold mb-3">Créer un utilisateur</h2>
+                <h2 className="font-bold mb-3">
+                  {editingUser ? 'Modifier le compte utilisateur' : 'Créer un utilisateur'}
+                </h2>
                 <form
+                  key={editingUser?.id ?? 'new'}
+                  id="admin-user-form"
                   className="grid md:grid-cols-3 gap-3"
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    if (busy) return;
                     const form = e.currentTarget;
                     const d = Object.fromEntries(new FormData(form));
+                    setBusy(true);
                     try {
-                      await api('admin', { action: 'user', ...d });
+                      await api('admin', editingUser
+                        ? { action: 'userEdit', id: editingUser.id, ...d }
+                        : { action: 'user', ...d });
                       form.reset();
+                      setEditingUserId('');
                       await reload();
-                      tell('Utilisateur créé');
+                      tell(editingUser ? 'Compte mis à jour' : 'Utilisateur créé');
                     } catch (e: any) {
                       tell(e.message);
+                    } finally {
+                      setBusy(false);
                     }
                   }}
                 >
-                  {['name', 'firstName', 'email', 'phone', 'password'].map(
+                  {(editingUser
+                    ? ['name', 'firstName', 'email', 'phone']
+                    : ['name', 'firstName', 'email', 'phone', 'password']).map(
                     (k) => (
                       <input
                         key={k}
                         name={k}
+                        defaultValue={editingUser?.[k] ?? ''}
+                        className={
+                          k === 'name' || k === 'firstName' ? 'uppercase' : undefined
+                        }
                         required={k !== 'phone'}
                         minLength={k === 'password' ? 12 : undefined}
                         aria-label={
@@ -1216,9 +1235,18 @@ export default function Home() {
                               ? 'email'
                               : 'text'
                         }
+                        onInput={
+                          k === 'name' || k === 'firstName'
+                            ? (event) => {
+                                event.currentTarget.value =
+                                  event.currentTarget.value.toLocaleUpperCase('fr-FR');
+                              }
+                            : undefined
+                        }
                       />
                     ),
                   )}
+                  {!editingUser && <>
                   <select
                     name="role"
                     aria-label="Profil"
@@ -1274,7 +1302,15 @@ export default function Home() {
                       </option>
                     ))}
                   </select>
-                  <button className="btn">Créer le compte</button>
+                  </>}
+                  <button className="btn" disabled={busy}>
+                    {editingUser ? 'Enregistrer les modifications' : 'Créer le compte'}
+                  </button>
+                  {editingUser && (
+                    <button type="button" className="btn alt" disabled={busy} onClick={() => setEditingUserId('')}>
+                      Annuler
+                    </button>
+                  )}
                 </form>
               </div>
             )}
@@ -1302,6 +1338,17 @@ export default function Home() {
                           <td>{user.role}</td>
                           <td>{user.active ? 'Actif' : 'Désactivé'}</td>
                           <td>
+                            <button
+                              type="button"
+                              className="btn alt mr-2"
+                              disabled={busy}
+                              onClick={() => {
+                                setEditingUserId(user.id);
+                                document.getElementById('admin-user-form')?.scrollIntoView({ block: 'start' });
+                              }}
+                            >
+                              Modifier
+                            </button>
                             <button
                               className="btn alt"
                               disabled={user.id === me.user.id || busy}
