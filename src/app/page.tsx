@@ -31,6 +31,7 @@ import RubricIcon from './RubricIcon';
 import RegionalMap from './RegionalMap';
 import ReportNotifications from './ReportNotifications';
 import { enabledRubrics, rubricIds } from '@/lib/forms';
+import { months } from '@/lib/analytics';
 
 function Brand() {
   return (
@@ -126,11 +127,23 @@ export default function Home() {
   const periodReady = loadedPeriod === year + '-' + month;
   const [serviceKind, setServiceKind] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
+  const [saisieRegionFilter, setSaisieRegionFilter] = useState('');
+  const [validationRegionFilter, setValidationRegionFilter] = useState('');
+  const [validationStatusFilter, setValidationStatusFilter] = useState('TOUS');
   const dashboardServices = org.services.filter(
     (s: Any) =>
       (!serviceKind || s.kind === serviceKind) &&
       (!regionFilter || s.division.regionId === regionFilter),
   );
+  const centralScope =
+    me?.user.role === 'DIRECTION_CENTRALE' || me?.user.role === 'ADMIN_NATIONAL';
+  const saisieServices = org.services.filter(
+    (s: Any) => !saisieRegionFilter || s.division.regionId === saisieRegionFilter,
+  );
+  useEffect(() => {
+    if (saisieServices.length && !saisieServices.some((s: Any) => s.id === service))
+      setService(saisieServices[0].id);
+  }, [saisieRegionFilter, org.services.length]);
   const reportByService = new Map(
     reports
       .filter((r) => r.year === year && r.month === month)
@@ -141,6 +154,23 @@ export default function Home() {
   const unvalidatedReports = periodReady
     ? reports.filter((report) => report.status !== 'VALIDE')
     : [];
+  const validationServices = org.services.filter(
+    (s: Any) =>
+      !validationRegionFilter || s.division.regionId === validationRegionFilter,
+  );
+  const validationReports = validationServices
+    .map((s: Any) => ({
+      service: s,
+      report: reports.find(
+        (r) => r.serviceId === s.id && r.year === year && r.month === month,
+      ),
+    }))
+    .filter(({ report }: { report: Any }) => {
+      if (validationStatusFilter === 'TOUS') return true;
+      if (validationStatusFilter === 'NON INTRODUIT') return !report;
+      if (validationStatusFilter === 'SAISIS') return !!report;
+      return report?.status === validationStatusFilter;
+    });
   const [adminRole, setAdminRole] = useState('CHEF_SERVICE');
   const [editingService, setEditingService] = useState('');
   const storedSteps: Array<string> = Array.isArray(values.__completed)
@@ -617,13 +647,30 @@ export default function Home() {
         {tab === 'saisie' && periodReady && (
           <div className="panel space-y-4">
             <div className="flex flex-wrap gap-3 items-center">
+              {centralScope && (
+                <label className="grid gap-1 text-sm font-semibold">
+                  Direction régionale
+                  <select
+                    aria-label="Filtrer la saisie par direction régionale"
+                    value={saisieRegionFilter}
+                    onChange={(e) => setSaisieRegionFilter(e.target.value)}
+                  >
+                    <option value="">Toutes les directions régionales</option>
+                    {org.regions.map((r: Any) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <select
                 aria-label="Service"
                 disabled={busy}
                 value={service}
                 onChange={(e) => setService(e.target.value)}
               >
-                {org.services.map((s: Any) => (
+                {saisieServices.map((s: Any) => (
                   <option key={s.id} value={s.id}>
                     {s.name} ·{' '}
                     {s.kind === 'FRONTALIER' ? 'Frontalier' : 'Provincial'}
@@ -635,10 +682,10 @@ export default function Home() {
               </span>
               <span className="text-sm text-red-700">{current?.reason}</span>
             </div>
-            {org.services.length > 0 && !permittedSections.length && (
+            {saisieServices.length > 0 && !permittedSections.length && (
               <p>Aucune rubrique habilitée pour ce service.</p>
             )}
-            {!org.services.length && (
+            {!saisieServices.length && (
               <p className="text-amber-700">
                 Aucun service créé ou autorisé. L'administrateur doit configurer
                 les services et habilitations.
@@ -814,50 +861,108 @@ export default function Home() {
         )}
         {tab === 'rapports' && periodReady && (
           <div className="panel">
-            <div className="flex flex-wrap gap-2 items-center justify-between mb-4">
-              <h2 className="font-bold">
-                {unvalidatedOnly ? 'Rapports non validés' : 'Rapports du mois'}
-              </h2>
-              {unvalidatedOnly && (
-                <button
-                  type="button"
-                  className="btn alt"
-                  onClick={() => setUnvalidatedOnly(false)}
-                >
-                  Tous les rapports
-                </button>
+            <div className="flex flex-wrap gap-3 items-end justify-between mb-4">
+              <div>
+                <h2 className="font-bold">Rapports et validation</h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  {months[month - 1]} {year} · services introduits et non introduits
+                </p>
+              </div>
+              {centralScope && (
+                <label className="grid gap-1 text-sm font-semibold">
+                  Direction régionale
+                  <select
+                    aria-label="Filtrer les rapports par direction régionale"
+                    value={validationRegionFilter}
+                    onChange={(e) => setValidationRegionFilter(e.target.value)}
+                  >
+                    <option value="">Toutes les directions régionales</option>
+                    {org.regions.map((r: Any) => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                  </select>
+                </label>
               )}
             </div>
-            {(unvalidatedOnly ? unvalidatedReports : reports).length === 0 && (
+            {centralScope && (
+              <div className="flex gap-2 overflow-x-auto pb-1 mb-3" role="tablist" aria-label="Basculer entre les directions régionales">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={!validationRegionFilter}
+                  className={'btn whitespace-nowrap ' + (validationRegionFilter ? 'alt' : '')}
+                  onClick={() => setValidationRegionFilter('')}
+                >
+                  Toutes les directions
+                </button>
+                {org.regions.map((r: Any) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={validationRegionFilter === r.id}
+                    className={'btn whitespace-nowrap ' + (validationRegionFilter === r.id ? '' : 'alt')}
+                    onClick={() => setValidationRegionFilter(r.id)}
+                  >
+                    {r.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2 mb-4" role="tablist" aria-label="État des rapports">
+              {[
+                ['TOUS', 'Tous'],
+                ['SAISIS', 'Introduits'],
+                ['NON INTRODUIT', 'Non introduits'],
+                ['SOUMIS', 'En validation'],
+                ['VALIDE', 'Validés'],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={validationStatusFilter === id}
+                  className={'btn ' + (validationStatusFilter === id ? '' : 'alt')}
+                  onClick={() => setValidationStatusFilter(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {validationReports.length === 0 && (
               <p className="text-sm text-slate-500 py-3">
-                Aucun rapport pour cette sélection.
+                Aucun service pour cette direction ou cet état.
               </p>
             )}
             <div className="scroll">
               <table>
                 <thead>
                   <tr>
+                    <th>Direction régionale</th>
                     <th>Service</th>
                     <th>Statut</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(unvalidatedOnly ? unvalidatedReports : reports).map((r) => (
-                    <tr key={r.id}>
-                      <td>{r.service.name}</td>
+                  {validationReports.map(({ service: s, report: r }: { service: Any; report: Any }) => (
+                    <tr key={s.id}>
+                      <td>{org.regions.find((x: Any) => x.id === s.division.regionId)?.name}</td>
+                      <td>{s.name}</td>
                       <td>
-                        <span className={'badge ' + r.status}>{r.status}</span>
+                        <span className={'badge ' + (r?.status || '')}>
+                          {r?.status || 'NON INTRODUIT'}
+                        </span>
                       </td>
                       <td>
-                        <div className="flex flex-wrap gap-1">
+                        {r ? <div className="flex flex-wrap gap-1">
                           <button
                             type="button"
                             title="Consulter le rapport"
                             aria-label="Consulter le rapport"
                             className="vetra-action-icon text-blue-800 bg-blue-50"
                             onClick={() => {
-                              setService(r.serviceId);
+                              setService(s.id);
                               setTab('saisie');
                             }}
                           >
@@ -883,11 +988,11 @@ export default function Home() {
                           </button>
                           <ReportEmail
                             endpoint={`/api/export/email?id=${encodeURIComponent(r.id)}`}
-                            title={`Rapport ${r.month}/${r.year} · ${r.service.name}`}
+                            title={`Rapport ${r.month}/${r.year} · ${s.name}`}
                           />
                           <ReportShare
                             url={`/api/export?id=${encodeURIComponent(r.id)}&type=pdf`}
-                            title={`Rapport ${r.month}/${r.year} · ${r.service.name}`}
+                            title={`Rapport ${r.month}/${r.year} · ${s.name}`}
                           />
                           {me.user.role === 'CHEF_DIVISION' &&
                             r.status === 'SOUMIS' && (
@@ -911,7 +1016,7 @@ export default function Home() {
                               Révoquer
                             </button>
                           )}
-                        </div>
+                        </div> : <span className="text-sm text-slate-500">En attente de saisie</span>}
                       </td>
                     </tr>
                   ))}

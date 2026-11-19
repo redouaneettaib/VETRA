@@ -135,6 +135,13 @@ button:disabled {
   text-align: left;
   background: #f6f8fa;
 }
+.vetra-data-table {
+  min-width: 680px;
+}
+.vetra-data-table td,
+.vetra-data-table th {
+  vertical-align: middle;
+}
 .scroll output {
   display: block;
   font-variant-numeric: tabular-nums;
@@ -222,6 +229,80 @@ input:disabled {
   }
   .vetra-cover-photo::after {
     background: linear-gradient(180deg, #edf4f825, #edf4f88a);
+  }
+}
+
+/* Les tableaux de saisie deviennent des fiches éditables sur téléphone.
+   Le tableau conserve sa structure sémantique sur grand écran. */
+@media (max-width: 640px) {
+  .panel {
+    padding: 14px;
+    border-radius: 13px;
+  }
+  .scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .vetra-data-table {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+  }
+  .vetra-data-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .vetra-data-table,
+  .vetra-data-table tbody,
+  .vetra-data-table tr,
+  .vetra-data-table td {
+    display: block;
+  }
+  .vetra-data-table tr {
+    margin: 0 0 10px;
+    border: 1px solid #dce5ed;
+    border-radius: 11px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .vetra-data-table td,
+  .vetra-data-table tbody th {
+    min-width: 0 !important;
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(7rem, 46%);
+    gap: 10px;
+    align-items: center;
+    padding: 10px 11px;
+    border-bottom: 1px solid #e8eef2;
+    text-align: left;
+  }
+  .vetra-data-table td:last-child,
+  .vetra-data-table tbody th:last-child {
+    border-bottom: 0;
+  }
+  .vetra-data-table td::before {
+    content: attr(data-label);
+    color: #536b7e;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    font-weight: 650;
+  }
+  .vetra-data-table td input,
+  .vetra-data-table td output {
+    min-width: 0;
+    width: 100%;
+  }
+  .vetra-data-table tbody th {
+    display: block;
+    background: #eef4f7;
+    font-size: 0.9rem;
   }
 }
 
