@@ -11,7 +11,7 @@ import {
 import { CANEVAS, RUBRICS } from '@/lib/canevas';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
-import nodemailer from 'nodemailer';
+import { email, mailConfigured } from '@/lib/mail';
 import { z } from 'zod';
 import {
   calculate,
@@ -29,40 +29,7 @@ type Input = Record<string, any>;
 const obj = (v: unknown): Input =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Input) : {};
 const isAdmin = (role: string) => role === 'ADMIN_NATIONAL';
-const mailConfigured = () =>
-  Boolean(process.env.SMTP_HOST && process.env.SMTP_FROM);
 const recipientAddress = z.string().trim().max(254).email();
-
-async function email(
-  to: string,
-  subject: string,
-  text: string,
-  attachment?: { filename: string; content: Buffer },
-) {
-  if (!mailConfigured()) throw Error('SMTP non configuré');
-  const port = Number(process.env.SMTP_PORT || 587);
-  const tr = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    secure: port === 465,
-    auth: process.env.SMTP_USER
-      ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-      : undefined,
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 20_000,
-  });
-  const sent = await tr.sendMail({
-    from: process.env.SMTP_FROM,
-    to,
-    subject,
-    text,
-    attachments: attachment
-      ? [{ ...attachment, contentType: 'application/pdf' }]
-      : undefined,
-  });
-  if (!sent.accepted.length) throw Error('Destinataire refusé par SMTP');
-}
 
 async function sendReportEmail(
   recipient: string,
@@ -306,6 +273,7 @@ async function handle(
               name: true,
               firstName: true,
               email: true,
+              phone: true,
               role: true,
               serviceId: true,
               divisionId: true,
@@ -389,18 +357,40 @@ async function handle(
             : {}),
         },
       });
-    } else if (body.action === 'user') {
+    } else if (body.action === 'user' || body.action === 'userEdit') {
       const email = String(body.email ?? '')
           .trim()
           .toLowerCase(),
-        name = String(body.name ?? '').trim(),
-        firstName = String(body.firstName ?? '').trim();
+        name = String(body.name ?? '').trim().toLocaleUpperCase('fr-FR'),
+        firstName = String(body.firstName ?? '')
+          .trim()
+          .toLocaleUpperCase('fr-FR');
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !name || !firstName)
+        return fail('Nom, prénom et adresse e-mail valide obligatoires');
+      const phone = String(body.phone ?? '').trim();
+      if (body.action === 'userEdit') {
+        const id = String(body.id ?? '');
+        const account = await db.user.findUnique({ where: { id }, select: { email: true } });
+        if (!account) return fail('Compte introuvable', 404);
+        const owner = await db.user.findUnique({ where: { email }, select: { id: true } });
+        if (owner && owner.id !== id) return fail('Cette adresse e-mail est déjà utilisée', 409);
+        const updated = await db.user.update({
+          where: { id },
+          data: {
+            email,
+            name,
+            firstName,
+            phone,
+            ...(email !== account.email
+              ? { otps: { updateMany: { where: { consumed: false }, data: { consumed: true } } } }
+              : {}),
+          },
+        });
+        return Response.json({ ok: true, id: updated.id });
+      }
       const password = body.password,
         role = body.role as Role;
       if (
-        !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ||
-        !name ||
-        !firstName ||
         typeof password !== 'string' ||
         password.length < 12 ||
         !Object.values(Role).includes(role)
@@ -434,7 +424,7 @@ async function handle(
           email,
           name,
           firstName,
-          phone: String(body.phone ?? '').trim(),
+          phone,
           role,
           serviceId: service?.id,
           divisionId: division?.id,
@@ -810,7 +800,7 @@ async function handle(
       return fail('Périmètre non autorisé', 403);
     if (recipient && !mailConfigured())
       return fail(
-        'Le serveur de messagerie SMTP de VETRA n’est pas configuré.',
+        'Le service d’envoi d’e-mails de VETRA n’est pas configuré.',
         503,
       );
     const reports = await db.report.findMany({
@@ -905,7 +895,7 @@ async function handle(
     if (recipient) {
       if (!mailConfigured())
         return fail(
-          'Le serveur de messagerie SMTP de VETRA n’est pas configuré.',
+          'Le service d’envoi d’e-mails de VETRA n’est pas configuré.',
           503,
         );
       return sendReportEmail(
