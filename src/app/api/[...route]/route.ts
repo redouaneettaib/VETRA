@@ -475,6 +475,11 @@ async function handle(
     const where: any = { serviceId: { in: scope } };
     if (year) where.year = year;
     if (month) where.month = month;
+    if (req.nextUrl.searchParams.get('summary') === '1') {
+      return Response.json(
+        await db.report.findMany({ where, select: { serviceId: true } }),
+      );
+    }
     return Response.json(
       await db.report.findMany({
         where,
