@@ -161,6 +161,42 @@ input:disabled {
   font-size: 14px;
 }
 
+/* Le reflet suit la silhouette du logo transparent. */
+@media (prefers-reduced-motion: no-preference) {
+  .brand img[src="/onssa-transparent.png"] {
+    animation:
+      vetra-onssa-reveal 1.25s cubic-bezier(0.22, 0.75, 0.27, 1) both,
+      vetra-onssa-shimmer 5.6s 1.25s ease-in-out infinite;
+  }
+}
+
+@keyframes vetra-onssa-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.12);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes vetra-onssa-shimmer {
+  0%, 15%, 33%, 100% {
+    filter: brightness(1) drop-shadow(0 0 0 transparent);
+  }
+  9% {
+    filter: brightness(1.16) drop-shadow(0 0 7px #ffc846a8);
+  }
+  22% {
+    filter: brightness(1.09) drop-shadow(0 0 4px #ffc84670);
+  }
+}
+
 .vetra-cover {
   position: relative;
   isolation: isolate;
