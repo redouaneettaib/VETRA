@@ -10,7 +10,7 @@ import {
   type RegionalService,
 } from '@/lib/regional-progress';
 
-const palette = ['#991b1b', '#dc2626', '#f87171', '#fecaca', '#0f654c'];
+const palette = ['#ffffff', '#d1eadd', '#8eccac', '#399f75', '#0f654c'];
 const scale = (rate: number) =>
   rate === 0
     ? palette[0]
@@ -131,7 +131,7 @@ export default function RegionalMap({
                   d={region.path}
                   fill={row ? scale(row.rate) : 'transparent'}
                   stroke={
-                    row ? (row.id === selected ? '#142d46' : '#fff') : '#cbd5e1'
+                    row?.id === selected ? '#142d46' : '#94a3b8'
                   }
                   strokeWidth={row && row.id === selected ? 2 : 1.1}
                   vectorEffect="non-scaling-stroke"
