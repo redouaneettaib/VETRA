@@ -36,7 +36,9 @@ import { months } from '@/lib/analytics';
 function Brand() {
   return (
     <div className="brand">
-      <img src="/onssa-transparent.png" alt="ONSSA" />
+      <span className="vetra-onssa-brand">
+        <img src="/onssa-transparent.png" alt="ONSSA" />
+      </span>
       <img src="/VETRA_officiel.jpg" alt="VETRA" />
     </div>
   );
@@ -124,9 +126,19 @@ export default function Home() {
   const current = reports.find(
     (r) => r.serviceId === service && r.year === year && r.month === month,
   );
+  const reviewingService = me?.user.role !== 'CHEF_SERVICE';
   const permittedSections = selectedService
-    ? enabledRubrics(selectedService.rights)
+    ? enabledRubrics(selectedService.rights).filter(
+        (id) =>
+          !reviewingService ||
+          selectedService.kind !== 'FRONTALIER' ||
+          id === 'IV',
+      )
     : [];
+  const sectionGroup = (id: string) => id.split('.')[0];
+  const visibleSections = reviewingService
+    ? [...new Set(permittedSections.map(sectionGroup))]
+    : ['I', 'II', 'III', 'IV', 'V', 'VI'];
   const [loadedPeriod, setLoadedPeriod] = useState('');
   const periodReady = loadedPeriod === year + '-' + month;
   const [serviceKind, setServiceKind] = useState('');
@@ -192,7 +204,6 @@ export default function Home() {
   const nextSection = permittedSections.find(
     (id) => !completedSteps.includes(id),
   );
-  const sectionGroup = (id: string) => id.split('.')[0];
   const editable =
     periodReady &&
     !!selectedService &&
@@ -699,7 +710,7 @@ export default function Home() {
             )}
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                {['I', 'II', 'III', 'IV', 'V', 'VI'].map((sec) => {
+                {visibleSections.map((sec) => {
                   const items = permittedSections.filter(
                     (id) => sectionGroup(id) === sec,
                   );
@@ -789,21 +800,25 @@ export default function Home() {
                 suivante s’ouvre après enregistrement.
               </p>
             </div>
-            <h2 className="font-bold text-lg flex items-start gap-2">
-              <RubricIcon id={rubric} colored />
-              <span>
-                {rubric} —{' '}
-                {canevas.rubrics.find((x: any) => x[0] === rubric)?.[3]}
-              </span>
-            </h2>
-            <fieldset disabled={busy}>
-              <CanevasTable
-                rubric={rubric}
-                values={values}
-                setValues={setValues}
-                editable={editable}
-              />
-            </fieldset>
+            {permittedSections.some((id) => id === rubric) && (
+              <>
+                <h2 className="font-bold text-lg flex items-start gap-2">
+                  <RubricIcon id={rubric} colored />
+                  <span>
+                    {rubric} —{' '}
+                    {canevas.rubrics.find((x: any) => x[0] === rubric)?.[3]}
+                  </span>
+                </h2>
+                <fieldset disabled={busy}>
+                  <CanevasTable
+                    rubric={rubric}
+                    values={values}
+                    setValues={setValues}
+                    editable={editable}
+                  />
+                </fieldset>
+              </>
+            )}
             <div className="flex flex-wrap gap-2">
               <button
                 disabled={!editable || busy || !permittedSections.length}

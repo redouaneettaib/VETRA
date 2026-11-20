@@ -161,12 +161,46 @@ input:disabled {
   font-size: 14px;
 }
 
-/* Le reflet suit la silhouette du logo transparent. */
+.vetra-onssa-brand {
+  position: relative;
+  width: 45%;
+  display: grid;
+  place-items: center;
+}
+.brand .vetra-onssa-brand img {
+  width: 100%;
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  .brand img[src="/onssa-transparent.png"] {
+  .vetra-onssa-brand {
     animation:
       vetra-onssa-reveal 1.25s cubic-bezier(0.22, 0.75, 0.27, 1) both,
-      vetra-onssa-shimmer 5.6s 1.25s ease-in-out infinite;
+      vetra-onssa-float 3.2s 1.25s ease-in-out infinite;
+  }
+  .vetra-onssa-brand::before,
+  .vetra-onssa-brand::after {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+    width: 17px;
+    height: 17px;
+    color: #a96304;
+    background: currentColor;
+    clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+    animation: vetra-onssa-twinkle 2.8s 1.25s ease-in-out infinite both;
+  }
+  .vetra-onssa-brand::before {
+    top: 9%;
+    right: 3%;
+  }
+  .vetra-onssa-brand::after {
+    width: 11px;
+    height: 11px;
+    bottom: 9%;
+    left: 7%;
+    color: #166687;
+    animation-delay: 2.55s;
   }
 }
 
@@ -185,15 +219,23 @@ input:disabled {
   }
 }
 
-@keyframes vetra-onssa-shimmer {
-  0%, 15%, 33%, 100% {
-    filter: brightness(1) drop-shadow(0 0 0 transparent);
+@keyframes vetra-onssa-float {
+  0%, 100% {
+    translate: 0 0;
   }
-  9% {
-    filter: brightness(1.16) drop-shadow(0 0 7px #ffc846a8);
+  50% {
+    translate: 0 -5px;
+  }
+}
+
+@keyframes vetra-onssa-twinkle {
+  0%, 60%, 100% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-25deg);
   }
   22% {
-    filter: brightness(1.09) drop-shadow(0 0 4px #ffc84670);
+    opacity: 1;
+    transform: scale(1.15) rotate(12deg);
   }
 }
 

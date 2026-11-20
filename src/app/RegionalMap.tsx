@@ -10,7 +10,7 @@ import {
   type RegionalService,
 } from '@/lib/regional-progress';
 
-const palette = ['#edf3f5', '#d1eadd', '#8eccac', '#399f75', '#0f654c'];
+const palette = ['#991b1b', '#dc2626', '#f87171', '#fecaca', '#0f654c'];
 const scale = (rate: number) =>
   rate === 0
     ? palette[0]
@@ -124,12 +124,12 @@ export default function RegionalMap({
               const row = byName.get(regionKey(region.name));
               const label = row
                 ? `${row.name} : ${row.current} sur ${row.expected}, ${row.rate} % saisis`
-                : `${region.name} : hors périmètre`;
+                : region.name;
               return (
                 <path
                   key={region.id}
                   d={region.path}
-                  fill={row ? scale(row.rate) : '#f5f7fa'}
+                  fill={row ? scale(row.rate) : 'transparent'}
                   stroke={
                     row ? (row.id === selected ? '#142d46' : '#fff') : '#cbd5e1'
                   }
@@ -169,12 +169,11 @@ export default function RegionalMap({
               '50–74 %',
               '75–99 %',
               '100 %',
-              'Hors périmètre',
             ].map((label, index) => (
               <span key={label} className="inline-flex items-center gap-1">
                 <i
                   className="h-3 w-3 rounded-sm border border-slate-300"
-                  style={{ background: palette[index] ?? '#f5f7fa' }}
+                  style={{ background: palette[index] }}
                 />{' '}
                 {label}
               </span>
