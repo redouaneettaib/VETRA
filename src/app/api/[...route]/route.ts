@@ -67,7 +67,7 @@ async function otp(userId: string, purpose: string, to: string) {
     },
     select: { id: true },
   });
-  if (recent) return;
+  if (recent) return { cooldown: true };
   const code = String(crypto.randomInt(100000, 1000000));
   const challenge = await db.otp.create({
     data: {
@@ -77,12 +77,17 @@ async function otp(userId: string, purpose: string, to: string) {
       expiresAt: new Date(Date.now() + 10 * 60_000),
     },
   });
+  const subject =
+    purpose === 'RESET'
+      ? 'VETRA — Réinitialisation du mot de passe'
+      : 'VETRA — Code de vérification';
   try {
     await email(
       to,
-      'VETRA — Code de vérification',
+      subject,
       `Code à usage unique : ${code}. Expiration : 10 minutes.`,
     );
+    return { cooldown: false };
   } catch (error) {
     await db.otp.update({
       where: { id: challenge.id },
@@ -175,41 +180,69 @@ async function handle(
     return Response.json({ ok: true });
   }
   if (path === 'password/request' && method === 'POST') {
+    const parsedEmail = recipientAddress.safeParse(
+      String(body.email || '')
+        .trim()
+        .toLowerCase(),
+    );
+    if (!parsedEmail.success)
+      return fail('Saisissez une adresse e-mail professionnelle valide.', 400);
     if (!mailConfigured())
       return fail(
         'L’envoi du code est indisponible. Le serveur de messagerie doit être configuré.',
         503,
       );
     const user = await db.user.findUnique({
-      where: {
-        email: String(body.email || '')
-          .trim()
-          .toLowerCase(),
-      },
+      where: { email: parsedEmail.data },
     });
-    if (user && user.active) await otp(user.id, 'RESET', user.email);
+    if (user && user.active) {
+      try {
+        await otp(user.id, 'RESET', user.email);
+      } catch {
+        return fail(
+          'Le serveur de messagerie n’a pas confirmé l’envoi du code. Réessayez dans quelques instants.',
+          502,
+        );
+      }
+    }
     return Response.json({ ok: true });
   }
   if (path === 'password/reset' && method === 'POST') {
+    const parsedEmail = recipientAddress.safeParse(
+      String(body.email || '')
+        .trim()
+        .toLowerCase(),
+    );
+    if (!parsedEmail.success)
+      return fail('Code invalide ou mot de passe trop court');
+    const password = body.password;
+    const code = String(body.code || '').trim();
+    if (
+      typeof password !== 'string' ||
+      password.length < 12 ||
+      Buffer.byteLength(password, 'utf8') > 72
+    )
+      return fail('Code invalide ou mot de passe trop court');
     const user = await db.user.findUnique({
-      where: {
-        email: String(body.email || '')
-          .trim()
-          .toLowerCase(),
-      },
+      where: { email: parsedEmail.data },
     });
     if (
       !user ||
       !user.active ||
-      typeof body.password !== 'string' ||
-      body.password.length < 12 ||
-      !(await verifyOtp(user.id, 'RESET', String(body.code || '')))
+      !(await verifyOtp(user.id, 'RESET', code))
     )
       return fail('Code invalide ou mot de passe trop court');
-    await db.user.update({
-      where: { id: user.id },
-      data: { passwordHash: await bcrypt.hash(body.password, 12) },
-    });
+    const passwordHash = await bcrypt.hash(password, 12);
+    await db.$transaction([
+      db.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      }),
+      db.otp.updateMany({
+        where: { userId: user.id, purpose: 'RESET', consumed: false },
+        data: { consumed: true },
+      }),
+    ]);
     return Response.json({ ok: true });
   }
   if (!u || !u.active) return fail('Connexion requise', 401);

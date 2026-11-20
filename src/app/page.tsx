@@ -37,9 +37,18 @@ function Brand() {
   return (
     <div className="brand">
       <span className="vetra-onssa-brand">
-        <img src="/onssa-transparent.png" alt="ONSSA" />
+        <img
+          src="/onssa-transparent.png"
+          alt="ONSSA"
+          referrerPolicy="no-referrer"
+        />
       </span>
-      <img src="/VETRA_officiel.jpg" alt="VETRA" />
+      <img
+        src="/vetra-logo.jpg"
+        alt="VETRA — Veille, Traçabilité et Reporting"
+        className="vetra-brand-logo"
+        referrerPolicy="no-referrer"
+      />
     </div>
   );
 }
@@ -52,7 +61,7 @@ async function api(path: string, data?: Any) {
     headers: { 'Content-Type': 'application/json' },
     body: data ? JSON.stringify(data) : undefined,
   });
-  const x = await r.json();
+  const x = await r.json().catch(() => ({}));
   if (!r.ok) throw Error(x.error || 'Erreur serveur');
   return x;
 }

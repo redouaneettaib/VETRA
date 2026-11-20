@@ -7,7 +7,7 @@ type Phase = 'login' | 'otp' | 'request' | 'reset';
 type Submit = (
   path: string,
   data: Record<string, string>,
-) => Promise<{ otpRequired?: boolean }>;
+) => Promise<{ otpRequired?: boolean; cooldown?: boolean }>;
 export default function LoginScreen({
   brand,
   submit,
@@ -37,29 +37,52 @@ export default function LoginScreen({
     event.preventDefault();
     if (busy) return;
     setError('');
-    if (phase === 'reset' && password !== confirmation) {
-      setError('Les mots de passe ne correspondent pas.');
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setError('Veuillez saisir votre adresse e-mail professionnelle.');
       return;
+    }
+    if (phase === 'reset') {
+      if (password.length < 12) {
+        setError('Le nouveau mot de passe doit contenir au moins 12 caractères.');
+        return;
+      }
+      if (password !== confirmation) {
+        setError('Les mots de passe ne correspondent pas.');
+        return;
+      }
     }
     setBusy(true);
     try {
       if (phase === 'login') {
-        const result = await submit('login', { email, password });
+        const result = await submit('login', {
+          email: normalizedEmail,
+          password,
+        });
         if (result.otpRequired) {
           update('otp');
           setNotice('Saisissez le code à six chiffres reçu par e-mail.');
         } else await onLogin();
       } else if (phase === 'otp') {
-        await submit('otp/verify', { email, code });
+        await submit('otp/verify', {
+          email: normalizedEmail,
+          code: code.trim(),
+        });
         await onLogin();
       } else if (phase === 'request') {
-        await submit('password/request', { email });
+        await submit('password/request', {
+          email: normalizedEmail,
+        });
         update('reset');
         setNotice(
-          'Si cette adresse correspond à un compte actif, le code de réinitialisation a été envoyé.',
+          'Si cette adresse correspond à un compte actif, un code de réinitialisation à six chiffres a été envoyé (valable 10 minutes).',
         );
       } else {
-        await submit('password/reset', { email, code, password });
+        await submit('password/reset', {
+          email: normalizedEmail,
+          code: code.trim(),
+          password,
+        });
         update('login');
         setNotice(
           'Mot de passe modifié. Connectez-vous avec votre nouveau mot de passe.',
@@ -79,9 +102,26 @@ export default function LoginScreen({
     request: 'Mot de passe oublié',
     reset: 'Nouveau mot de passe',
   }[phase];
+  const phaseHint = {
+    login: '',
+    otp: 'Entrez le code de vérification à 6 chiffres envoyé à votre adresse professionnelle.',
+    request:
+      'Saisissez votre e-mail professionnel pour recevoir un code de réinitialisation valable 10 minutes.',
+    reset:
+      'Saisissez le code reçu par e-mail puis définissez un nouveau mot de passe d’au moins 12 caractères.',
+  }[phase];
   return (
     <main className="vetra-cover">
       <div className="vetra-cover-photo" aria-hidden="true">
+        <div className="vetra-cover-mirror">
+          <img
+            src="/inspection-onssa-etiquetage.webp"
+            width="1600"
+            height="900"
+            alt=""
+            referrerPolicy="no-referrer"
+          />
+        </div>
         <div className="vetra-cover-frame">
           <img
             src="/inspection-onssa-etiquetage.webp"
@@ -89,6 +129,7 @@ export default function LoginScreen({
             height="900"
             fetchPriority="high"
             alt=""
+            referrerPolicy="no-referrer"
           />
         </div>
       </div>
@@ -102,11 +143,19 @@ export default function LoginScreen({
             {heading}
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Plateforme nationale des services vétérinaires
+            Plateforme de reporting des services vétérinaires
           </p>
+          {phaseHint && (
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              {phaseHint}
+            </p>
+          )}
         </div>
         {notice && (
-          <p className="text-sm text-teal" role="status">
+          <p
+            className="text-sm text-teal bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2"
+            role="status"
+          >
             {notice}
           </p>
         )}
@@ -118,7 +167,7 @@ export default function LoginScreen({
               required
               autoComplete="username"
               value={email}
-              disabled={phase === 'otp' || phase === 'reset' || busy}
+              disabled={phase === 'otp' || busy}
               onChange={(event) => setEmail(event.target.value)}
             />
           </label>
@@ -132,9 +181,12 @@ export default function LoginScreen({
                 required
                 pattern="[0-9]{6}"
                 maxLength={6}
+                placeholder="000000"
                 value={code}
                 disabled={busy}
-                onChange={(event) => setCode(event.target.value)}
+                onChange={(event) =>
+                  setCode(event.target.value.replace(/\D/g, '').slice(0, 6))
+                }
               />
             </label>
           )}
@@ -171,11 +223,15 @@ export default function LoginScreen({
             </label>
           )}
           {error && (
-            <p className="text-sm text-red-700" role="alert">
+            <p
+              className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2"
+              role="alert"
+            >
               {error}
             </p>
           )}
           <button
+            type="submit"
             className="btn w-full inline-flex items-center justify-center gap-2"
             disabled={busy}
           >
@@ -192,7 +248,7 @@ export default function LoginScreen({
         </form>
         <button
           type="button"
-          className="text-sm text-teal font-semibold flex items-center gap-2 justify-self-start"
+          className="text-sm text-teal hover:text-navy hover:underline font-semibold flex items-center gap-2 justify-self-start py-1 transition-colors"
           disabled={busy}
           onClick={() =>
             update(phase === 'login' || phase === 'reset' ? 'request' : 'login')
@@ -212,11 +268,22 @@ export default function LoginScreen({
             </>
           )}
         </button>
+        {phase === 'request' && (
+          <button
+            type="button"
+            disabled={busy}
+            className="text-sm text-slate-600 hover:text-navy hover:underline font-medium flex items-center gap-2 justify-self-start transition-colors"
+            onClick={() => update('reset')}
+          >
+            <KeyRound size={15} />
+            J’ai déjà reçu un code
+          </button>
+        )}
         {phase === 'reset' && (
           <button
             type="button"
             disabled={busy}
-            className="text-sm text-teal font-semibold flex items-center gap-2 justify-self-start"
+            className="text-sm text-teal hover:text-navy hover:underline font-semibold flex items-center gap-2 justify-self-start transition-colors"
             onClick={() => update('login')}
           >
             <ArrowLeft size={15} />
