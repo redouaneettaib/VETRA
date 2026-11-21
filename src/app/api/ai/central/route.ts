@@ -467,6 +467,10 @@ export async function POST(req: NextRequest) {
     if (error instanceof AiServiceError) {
       return fail(error.message, error.status);
     }
+    console.error(
+      'VETRA /api/ai/central unexpected error:',
+      error instanceof Error ? error.message : 'unknown error',
+    );
     return fail(
       'Impossible de terminer l’analyse IA pour le moment.',
       502,
