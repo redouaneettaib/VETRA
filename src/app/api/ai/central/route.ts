@@ -161,6 +161,11 @@ export async function POST(req: NextRequest) {
         metric: '',
       });
 
+      const compactSnapshot = {
+        ...snapshot,
+        topIndicators: snapshot.topIndicators.slice(0, 20),
+      };
+      const cacheKey = `summary:${payload.year}:${payload.month}:${payload.mode}:${payload.group}:${payload.ids.join(',')}:${validRubrics.join(',')}`;
       const result = await generateStructuredJson<{
         titre: string;
         synthese: string;
@@ -168,6 +173,7 @@ export async function POST(req: NextRequest) {
         pointsVigilance: string[];
         recommandations: string[];
       }>({
+        cacheKey,
         systemInstruction:
           'Tu es analyste vétérinaire senior à la Direction Centrale de l’ONSSA – DPA (Maroc). ' +
           'Rédige une note de synthèse institutionnelle en français administratif précis, clair et concis, ' +
@@ -175,7 +181,7 @@ export async function POST(req: NextRequest) {
           'Si peu ou pas de rapports sont validés pour la période, indique-le clairement comme point de vigilance prioritaire.',
         prompt:
           `Produis la synthèse exécutive pour la Direction centrale à partir de ces données consolidées VETRA :\n` +
-          JSON.stringify(snapshot),
+          JSON.stringify(compactSnapshot),
         schema: {
           type: Type.OBJECT,
           properties: {
@@ -251,6 +257,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const topCandidates = candidates.slice(0, 15);
       const aiAudit = await generateStructuredJson<{
         resume: string;
         items: Array<{
@@ -260,6 +267,7 @@ export async function POST(req: NextRequest) {
           motifSuggestion: string;
         }>;
       }>({
+        cacheKey: `anomalies:${payload.year}:${payload.month}:${topCandidates.map((c) => c.id).join('|')}`,
         systemInstruction:
           'Tu es auditeur qualité des données vétérinaires à la Direction Centrale de l’ONSSA – DPA (Maroc). ' +
           'On te fournit des anomalies statistiques pré-détectées sur des rapports mensuels VETRA. ' +
@@ -270,7 +278,7 @@ export async function POST(req: NextRequest) {
         prompt:
           `Période auditée : ${months[payload.month - 1]} ${payload.year}.\n` +
           `Anomalies détectées :\n` +
-          JSON.stringify(candidates),
+          JSON.stringify(topCandidates),
         schema: {
           type: Type.OBJECT,
           properties: {
@@ -348,6 +356,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const topSignals = candidates.slice(0, 10);
       const aiSignals = await generateStructuredJson<{
         syntheseVeille: string;
         signaux: Array<{
@@ -358,6 +367,7 @@ export async function POST(req: NextRequest) {
           actionRecommandee: string;
         }>;
       }>({
+        cacheKey: `signals:${payload.year}:${payload.month}:${topSignals.map((s) => s.id).join('|')}`,
         systemInstruction:
           'Tu es spécialiste en veille sanitaire vétérinaire à la Direction Centrale de l’ONSSA – DPA (Maroc). ' +
           'À partir des signaux faibles pré-calculés sur 6 mois glissants (hausses continues multi-mois, flambées simultanées dans plusieurs régions, baisses de couverture), ' +
@@ -367,7 +377,7 @@ export async function POST(req: NextRequest) {
         prompt:
           `Fenêtre de veille se terminant en ${months[payload.month - 1]} ${payload.year}.\n` +
           `Signaux pré-détectés :\n` +
-          JSON.stringify(candidates),
+          JSON.stringify(topSignals),
         schema: {
           type: Type.OBJECT,
           properties: {
@@ -436,6 +446,10 @@ export async function POST(req: NextRequest) {
       payload.year,
     );
     const context = buildQaContext(services, reports, payload.year, payload.month);
+    const compactQa = {
+      ...context,
+      activeIndicators: context.activeIndicators.slice(0, 30),
+    };
     const historyBlock = payload.history.length
       ? `\nHistorique récent de la conversation :\n${payload.history
           .map((turn) => `${turn.role === 'user' ? 'Direction centrale' : 'Assistant VETRA'} : ${turn.text}`)
@@ -450,7 +464,7 @@ export async function POST(req: NextRequest) {
         'N’invente jamais un chiffre, une région ou un indicateur. Si une donnée demandée n’est pas disponible ou pas encore validée dans le périmètre chargé, dis-le explicitement.',
       prompt:
         `Données nationales VETRA consolidées (période de référence : ${context.referencePeriod}) :\n` +
-        JSON.stringify(context) +
+        JSON.stringify(compactQa) +
         historyBlock +
         `\nQuestion de la Direction centrale : ${payload.question}`,
       thinkingLevel: ThinkingLevel.LOW,

@@ -3,11 +3,7 @@ import { GoogleGenAI, ThinkingLevel, type Schema } from '@google/genai';
 export const VETRA_AI_MODEL =
   process.env.GEMINI_MODEL?.trim() || 'gemini-4-hydrogen';
 
-const FALLBACK_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash-lite',
-];
+const FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 
 export class AiServiceError extends Error {
   readonly status: number;
@@ -22,6 +18,11 @@ export class AiServiceError extends Error {
 let cachedDevClient: GoogleGenAI | null = null;
 let cachedVertexClient: GoogleGenAI | null = null;
 let cachedKey = '';
+
+// Remember working / 404 targets per API key so we never waste latency or quota on unavailable models
+let preferredTargetKey = '';
+const unavailableTargets = new Set<string>();
+const responseCache = new Map<string, { expiresAt: number; value: unknown }>();
 
 function getApiKey(): string {
   const apiKey = process.env.GEMINI_API_KEY?.trim() || '';
@@ -53,6 +54,8 @@ function getClients(): {
       httpOptions,
     });
     cachedKey = apiKey;
+    preferredTargetKey = '';
+    unavailableTargets.clear();
   }
   return {
     apiKey,
@@ -131,68 +134,13 @@ function isAuthError(error: unknown): boolean {
   );
 }
 
-function classifyError(error: unknown): AiServiceError {
-  if (error instanceof AiServiceError) return error;
-  const { httpStatus, code, message } = extractErrorDetails(error);
-  const safeMsg = message
-    .replace(/(?:AIza|AQ\.)[A-Za-z0-9._-]+/g, '[REDACTED]')
-    .slice(0, 180);
-  console.error('VETRA Gemini API error:', {
-    httpStatus,
-    code,
-    message: safeMsg,
-  });
-  const upper = `${code} ${message}`.toUpperCase();
-  const detail = [httpStatus ? `HTTP ${httpStatus}` : '', code]
-    .filter(Boolean)
-    .join(' · ');
-
-  if (isAuthError(error)) {
-    return new AiServiceError(
-      `Clé GEMINI_API_KEY refusée par Google${detail ? ` (${detail})` : ''}. Vérifiez la clé enregistrée dans Railway → Variables (sans espace autour) ou générez-en une nouvelle sur aistudio.google.com/apikey.`,
-      403,
-    );
-  }
-  if (
-    httpStatus === 429 ||
-    upper.includes('RESOURCE_EXHAUSTED') ||
-    upper.includes('QUOTA')
-  ) {
-    return new AiServiceError(
-      'Le quota de votre clé GEMINI_API_KEY est atteint ou la facturation n’est pas activée pour ce volume. Réessayez dans un instant ou vérifiez votre quota Google AI Studio.',
-      429,
-    );
-  }
-  if (isModelUnavailable(error)) {
-    return new AiServiceError(
-      `Le modèle IA configuré n’est pas accessible avec cette clé API${detail ? ` (${detail})` : ''}.`,
-      502,
-    );
-  }
-  if (httpStatus === 503 || upper.includes('UNAVAILABLE')) {
-    return new AiServiceError(
-      'Les serveurs d’analyse IA connaissent un pic de charge temporaire (HTTP 503). Réessayez dans quelques secondes.',
-      503,
-    );
-  }
-  return new AiServiceError(
-    detail
-      ? `Le service d’analyse IA a renvoyé une erreur (${detail}${safeMsg ? ` : ${safeMsg}` : ''}).`
-      : 'Le service d’analyse IA est temporairement indisponible. Réessayez dans un instant.',
-    502,
-  );
-}
-
-function isRetryable(error: unknown): boolean {
+function isQuotaError(error: unknown): boolean {
   const { httpStatus, code, message } = extractErrorDetails(error);
   const upper = `${code} ${message}`.toUpperCase();
   return (
     httpStatus === 429 ||
-    httpStatus === 503 ||
-    upper.includes('UNAVAILABLE') ||
-    upper.includes('ECONNRESET') ||
-    upper.includes('ETIMEDOUT') ||
-    upper.includes('FETCH FAILED')
+    upper.includes('RESOURCE_EXHAUSTED') ||
+    upper.includes('QUOTA')
   );
 }
 
@@ -207,79 +155,204 @@ function isOverloaded(error: unknown): boolean {
   );
 }
 
+function isTransientNetwork(error: unknown): boolean {
+  const { message } = extractErrorDetails(error);
+  const upper = message.toUpperCase();
+  return (
+    upper.includes('ECONNRESET') ||
+    upper.includes('ETIMEDOUT') ||
+    upper.includes('FETCH FAILED')
+  );
+}
+
+function classifyError(error: unknown): AiServiceError {
+  if (error instanceof AiServiceError) return error;
+  const { httpStatus, code, message } = extractErrorDetails(error);
+  const safeMsg = message
+    .replace(/(?:AIza|AQ\.)[A-Za-z0-9._-]+/g, '[REDACTED]')
+    .slice(0, 180);
+  console.error('VETRA Gemini API error:', {
+    httpStatus,
+    code,
+    message: safeMsg,
+  });
+  const detail = [httpStatus ? `HTTP ${httpStatus}` : '', code]
+    .filter(Boolean)
+    .join(' · ');
+
+  if (isQuotaError(error)) {
+    return new AiServiceError(
+      'Limite de requêtes temporaire atteinte sur votre clé Google AI Studio (plan gratuit). Patientez environ 30 à 60 secondes puis réessayez, ou activez la facturation sur votre projet Google AI Studio.',
+      429,
+    );
+  }
+  if (isOverloaded(error)) {
+    return new AiServiceError(
+      'Les serveurs Google Gemini connaissent un pic de charge temporaire (HTTP 503). Réessayez dans quelques secondes.',
+      503,
+    );
+  }
+  if (isAuthError(error)) {
+    return new AiServiceError(
+      `Clé GEMINI_API_KEY refusée par Google${detail ? ` (${detail})` : ''}. Vérifiez la clé enregistrée dans Railway → Variables.`,
+      403,
+    );
+  }
+  if (isModelUnavailable(error)) {
+    return new AiServiceError(
+      `Aucun modèle Gemini compatible n’est accessible avec cette clé API${detail ? ` (${detail})` : ''}.`,
+      502,
+    );
+  }
+  return new AiServiceError(
+    detail
+      ? `Le service d’analyse IA a renvoyé une erreur (${detail}${safeMsg ? ` : ${safeMsg}` : ''}).`
+      : 'Le service d’analyse IA est temporairement indisponible. Réessayez dans un instant.',
+    502,
+  );
+}
+
 function supportsThinkingLevel(model: string): boolean {
   return model.startsWith('gemini-3') || model.startsWith('gemini-4');
 }
 
+type Attempt = {
+  key: string;
+  client: GoogleGenAI;
+  model: string;
+  mode: 'dev' | 'vertex';
+};
+
 async function runWithModelFallback<T>(
   runner: (ai: GoogleGenAI, model: string) => Promise<T>,
+  cacheKey?: string,
 ): Promise<T> {
+  if (cacheKey) {
+    const cached = responseCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as T;
+    }
+  }
+
   const { apiKey, devClient, vertexClient } = getClients();
-  const devModels = [
+  const orderedModels = [
     VETRA_AI_MODEL,
     ...FALLBACK_MODELS.filter((m) => m !== VETRA_AI_MODEL),
   ];
 
-  // Build ordered endpoint + model attempts:
-  // 1) Standard Gemini Developer API (works for both AIza... and newer AI Studio AQ. keys)
-  // 2) Vertex AI Express fallback (for Google Cloud Vertex AI Express AQ. keys if Developer API rejects auth)
-  const attempts: Array<{ client: GoogleGenAI; model: string; mode: 'dev' | 'vertex' }> =
-    devModels.map((model) => ({ client: devClient, model, mode: 'dev' }));
+  let attempts: Attempt[] = orderedModels.map((model) => ({
+    key: `dev:${model}`,
+    client: devClient,
+    model,
+    mode: 'dev',
+  }));
 
   if (apiKey.startsWith('AQ.')) {
     attempts.push(
-      { client: vertexClient, model: 'gemini-2.5-flash', mode: 'vertex' },
-      { client: vertexClient, model: 'gemini-2.5-flash-lite', mode: 'vertex' },
+      {
+        key: 'vertex:gemini-2.5-flash',
+        client: vertexClient,
+        model: 'gemini-2.5-flash',
+        mode: 'vertex',
+      },
+      {
+        key: 'vertex:gemini-2.5-flash-lite',
+        client: vertexClient,
+        model: 'gemini-2.5-flash-lite',
+        mode: 'vertex',
+      },
     );
   }
 
-  let lastError: unknown;
+  // Skip models previously confirmed 404 for this API key
+  attempts = attempts.filter((a) => !unavailableTargets.has(a.key));
+
+  // Try the last known working (mode, model) first to avoid repeated probes
+  if (preferredTargetKey) {
+    const prefIdx = attempts.findIndex((a) => a.key === preferredTargetKey);
+    if (prefIdx > 0) {
+      const [pref] = attempts.splice(prefIdx, 1);
+      attempts.unshift(pref);
+    }
+  }
+
+  let bestError: unknown = null;
+  let lastError: unknown = null;
+
   for (let idx = 0; idx < attempts.length; idx++) {
-    const { client, model, mode } = attempts[idx];
-    for (let retry = 1; retry <= 2; retry++) {
+    const attempt = attempts[idx];
+    const maxTries = 2;
+    for (let retry = 1; retry <= maxTries; retry++) {
       try {
-        return await runner(client, model);
+        const result = await runner(attempt.client, attempt.model);
+        preferredTargetKey = attempt.key;
+        if (cacheKey) {
+          if (responseCache.size > 40) responseCache.clear();
+          responseCache.set(cacheKey, {
+            expiresAt: Date.now() + 90_000,
+            value: result,
+          });
+        }
+        return result;
       } catch (error) {
         lastError = error;
-        const nextSameMode =
-          idx + 1 < attempts.length && attempts[idx + 1].mode === mode;
 
-        // On model 404/unavailable, move immediately to next model in same mode
-        if (isModelUnavailable(error) && nextSameMode) {
+        // Track more informative errors (429 / 503) over secondary 404s
+        if (
+          !bestError ||
+          isQuotaError(error) ||
+          (isOverloaded(error) && !isQuotaError(bestError))
+        ) {
+          bestError = error;
+        }
+
+        if (isModelUnavailable(error)) {
+          unavailableTargets.add(attempt.key);
           console.warn(
-            `VETRA Gemini (${mode}/${model}) indisponible, essai suivant.`,
+            `VETRA Gemini (${attempt.key}) indisponible (404), mis en cache comme ignoré.`,
           );
           break;
         }
-        // If standard Developer API rejects an AQ. key auth, jump directly to Vertex AI Express attempt
-        if (mode === 'dev' && isAuthError(error) && apiKey.startsWith('AQ.')) {
+
+        // On auth rejection with AQ. key on dev endpoint, skip straight to vertex endpoints
+        if (
+          attempt.mode === 'dev' &&
+          isAuthError(error) &&
+          apiKey.startsWith('AQ.')
+        ) {
           const vertexIdx = attempts.findIndex((a) => a.mode === 'vertex');
           if (vertexIdx > idx) {
-            console.warn(
-              'VETRA Gemini Developer API auth refusée pour clé AQ., essai en mode Vertex AI Express.',
-            );
             idx = vertexIdx - 1;
             break;
           }
         }
-        // On transient 503/network spike: retry once, then fail over to next lighter model in same mode
-        if (isRetryable(error)) {
-          if (retry < 2) {
-            await new Promise((resolve) => setTimeout(resolve, 750));
+
+        // On 429 quota hit: do NOT retry the same model immediately; try next model with separate quota bucket
+        if (isQuotaError(error)) {
+          console.warn(
+            `VETRA Gemini (${attempt.key}) quota atteint (429), essai du modèle suivant.`,
+          );
+          break;
+        }
+
+        // On 503 overload or transient network error: 1 short retry, then fail over to next model
+        if (isOverloaded(error) || isTransientNetwork(error)) {
+          if (retry < maxTries) {
+            await new Promise((resolve) => setTimeout(resolve, 650));
             continue;
           }
-          if (isOverloaded(error) && nextSameMode) {
-            console.warn(
-              `VETRA Gemini (${mode}/${model}) surchargé (503), bascule vers "${attempts[idx + 1].model}".`,
-            );
-            break;
-          }
+          console.warn(
+            `VETRA Gemini (${attempt.key}) surchargé (503), essai du modèle suivant.`,
+          );
+          break;
         }
+
         throw classifyError(error);
       }
     }
   }
-  throw classifyError(lastError);
+
+  throw classifyError(bestError ?? lastError);
 }
 
 export async function generateStructuredJson<T>(options: {
@@ -287,9 +360,10 @@ export async function generateStructuredJson<T>(options: {
   prompt: string;
   schema: Schema;
   thinkingLevel?: ThinkingLevel;
+  cacheKey?: string;
 }): Promise<T> {
-  const response = await runWithModelFallback((ai, model) =>
-    ai.models.generateContent({
+  const raw = await runWithModelFallback(async (ai, model) => {
+    const response = await ai.models.generateContent({
       model,
       contents: options.prompt,
       config: {
@@ -304,15 +378,17 @@ export async function generateStructuredJson<T>(options: {
             }
           : {}),
       },
-    }),
-  );
-  const raw = (response.text ?? '').trim();
-  if (!raw) {
-    throw new AiServiceError(
-      'Réponse vide reçue du moteur d’analyse. Veuillez relancer l’analyse.',
-      502,
-    );
-  }
+    });
+    const text = (response.text ?? '').trim();
+    if (!text) {
+      throw new AiServiceError(
+        'Réponse vide reçue du moteur d’analyse. Veuillez relancer l’analyse.',
+        502,
+      );
+    }
+    return text;
+  }, options.cacheKey);
+
   try {
     return JSON.parse(raw) as T;
   } catch {
@@ -328,8 +404,8 @@ export async function generateGroundedText(options: {
   prompt: string;
   thinkingLevel?: ThinkingLevel;
 }): Promise<string> {
-  const response = await runWithModelFallback((ai, model) =>
-    ai.models.generateContent({
+  return runWithModelFallback(async (ai, model) => {
+    const response = await ai.models.generateContent({
       model,
       contents: options.prompt,
       config: {
@@ -342,14 +418,14 @@ export async function generateGroundedText(options: {
             }
           : {}),
       },
-    }),
-  );
-  const text = (response.text ?? '').trim();
-  if (!text) {
-    throw new AiServiceError(
-      'Réponse vide reçue du moteur d’analyse. Veuillez reformuler votre question.',
-      502,
-    );
-  }
-  return text;
+    });
+    const text = (response.text ?? '').trim();
+    if (!text) {
+      throw new AiServiceError(
+        'Réponse vide reçue du moteur d’analyse. Veuillez reformuler votre question.',
+        502,
+      );
+    }
+    return text;
+  });
 }
