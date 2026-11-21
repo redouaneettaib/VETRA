@@ -26,7 +26,23 @@ import {
   MapPin,
   ChevronDown,
   Clock3,
+  CheckCircle2,
+  Lock,
+  Save,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Sigma,
 } from 'lucide-react';
+
+const SECTION_SHORT_LABELS: Record<string, string> = {
+  I: 'Marché local',
+  II: 'Établissements',
+  III: 'Transport',
+  IV: 'Importation',
+  V: 'Exportation',
+  VI: 'Laboratoire',
+};
 
 import CanevasTable from './CanevasTable';
 import Reporting from './Reporting';
@@ -930,145 +946,358 @@ export default function Home() {
                 les services et habilitations.
               </p>
             )}
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {visibleSections.map((sec) => {
-                  const items = permittedSections.filter(
-                    (id) => sectionGroup(id) === sec,
-                  );
-                  const unlocked =
-                    items.length > 0 &&
-                    (!editable ||
-                      !nextSection ||
-                      permittedSections.indexOf(items[0]) <=
-                        permittedSections.indexOf(nextSection));
-                  return (
-                    <button
-                      type="button"
-                      key={sec}
-                      disabled={!unlocked}
-                      onClick={() =>
-                        setRubric(
-                          items.find((id) => !completedSteps.includes(id)) ||
-                            items[0],
-                        )
-                      }
-                      className={
-                        'rounded-xl border px-5 py-3 font-bold ' +
-                        (sectionGroup(rubric) === sec
-                          ? 'bg-navy text-white'
-                          : unlocked
-                            ? 'bg-white hover:bg-slate-100'
-                            : 'bg-slate-100 text-slate-400 cursor-not-allowed')
-                      }
-                    >
-                      Section {sec}{' '}
-                      {!unlocked
-                        ? '🔒'
-                        : items.every((id) => completedSteps.includes(id))
-                          ? '✓'
-                          : ''}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {permittedSections
-                  .filter((id) => sectionGroup(id) === sectionGroup(rubric))
-                  .map((id) => {
-                    const unlocked =
-                      !editable ||
-                      completedSteps.includes(id) ||
-                      id === nextSection ||
-                      !nextSection;
-                    return (
-                      <button
-                        type="button"
-                        key={id}
-                        disabled={!unlocked}
-                        onClick={() => setRubric(id)}
-                        className={
-                          'inline-flex items-start gap-2 rounded-lg border px-3 py-2.5 text-left text-sm max-w-full ' +
-                          (rubric === id
-                            ? 'bg-navy text-white'
-                            : unlocked
-                              ? 'bg-white hover:bg-slate-100'
-                              : 'bg-slate-100 text-slate-400 cursor-not-allowed')
-                        }
-                      >
-                        <RubricIcon id={id} />
-                        <span>
-                          {id}{' '}
-                          {completedSteps.includes(id)
-                            ? '✓'
-                            : unlocked
-                              ? ''
-                              : '🔒'}
-                          <span className="block text-xs">
-                            {canevas.rubrics.find((x: any) => x[0] === id)?.[3]}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-              </div>
-              <p className="text-sm text-slate-500">
-                {
-                  completedSteps.filter((id) =>
-                    permittedSections.some((rid) => rid === id),
-                  ).length
-                }{' '}
-                / {permittedSections.length} rubriques complétées · La rubrique
-                suivante s’ouvre après enregistrement.
-              </p>
-            </div>
-            {permittedSections.some((id) => id === rubric) && (
-              <>
-                <h2 className="font-bold text-lg flex items-start gap-2">
-                  <RubricIcon id={rubric} colored />
-                  <span>
-                    {rubric} —{' '}
-                    {canevas.rubrics.find((x: any) => x[0] === rubric)?.[3]}
-                  </span>
-                </h2>
-                <fieldset disabled={busy}>
-                  <CanevasTable
-                    rubric={rubric}
-                    values={values}
-                    setValues={setValues}
-                    editable={editable}
-                  />
-                </fieldset>
-              </>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <button
-                disabled={!editable || busy || !permittedSections.length}
-                className="btn"
-                onClick={save}
-              >
-                Enregistrer le brouillon
-              </button>
-              <button
-                disabled={
-                  !editable || busy || !rubric || rubric !== nextSection
-                }
-                className="btn green"
-                onClick={completeRubric}
-              >
-                Enregistrer et continuer
-              </button>
-              {!!permittedSections.length && !nextSection && (
-                <button
-                  disabled={!editable || busy || !current?.id}
-                  className="btn green"
-                  onClick={() => action(current?.id || '', 'soumettre')}
-                >
-                  Soumettre le rapport complet
-                </button>
-              )}
-              {current && (
+            {permittedSections.length > 0 && (() => {
+              const completedCount = completedSteps.filter((id) =>
+                permittedSections.some((rid) => rid === id),
+              ).length;
+              const progressPct = Math.round(
+                (completedCount / permittedSections.length) * 100,
+              );
+              const unlockedRubrics = permittedSections.filter(
+                (id) =>
+                  !editable ||
+                  completedSteps.includes(id) ||
+                  id === nextSection ||
+                  !nextSection,
+              );
+              const currentUnlockedIdx = unlockedRubrics.findIndex(
+                (id) => id === rubric,
+              );
+              const prevRubric =
+                currentUnlockedIdx > 0
+                  ? unlockedRubrics[currentUnlockedIdx - 1]
+                  : null;
+              const nextUnlockedRubric =
+                currentUnlockedIdx >= 0 &&
+                currentUnlockedIdx < unlockedRubrics.length - 1
+                  ? unlockedRubrics[currentUnlockedIdx + 1]
+                  : null;
+              const activeRubricTitle =
+                canevas.rubrics.find((x: any) => x[0] === rubric)?.[3] || '';
+              const activeSectionRubrics = permittedSections.filter(
+                (id) => sectionGroup(id) === sectionGroup(rubric),
+              );
+
+              return (
                 <>
+                  <div className="vetra-saisie-nav">
+                    <div className="vetra-saisie-progress-head">
+                      <div className="vetra-saisie-progress-info">
+                        <span className="vetra-saisie-progress-title">
+                          Progression de la saisie
+                        </span>
+                        <span
+                          className="vetra-saisie-progress-sep"
+                          aria-hidden="true"
+                        >
+                          ·
+                        </span>
+                        <span className="vetra-saisie-progress-count tabular-nums">
+                          <strong>{completedCount}</strong> /{' '}
+                          {permittedSections.length}{' '}
+                          {permittedSections.length > 1
+                            ? 'rubriques complétées'
+                            : 'rubrique complétée'}
+                        </span>
+                        <span className="vetra-saisie-progress-pct tabular-nums">
+                          {progressPct}%
+                        </span>
+                      </div>
+                      <div className="vetra-saisie-mode">
+                        {editable ? (
+                          <>
+                            <Pencil
+                              size={13}
+                              className="text-teal-700"
+                              aria-hidden="true"
+                            />
+                            <span className="text-teal-800 font-semibold">
+                              Saisie active
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span>
+                              Appuyez sur Entrée pour passer au champ suivant
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Lock
+                              size={13}
+                              className="text-slate-500"
+                              aria-hidden="true"
+                            />
+                            <span>Mode consultation (lecture seule)</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div
+                      className="vetra-saisie-progress-track"
+                      role="progressbar"
+                      aria-valuenow={progressPct}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label="Avancement des rubriques du rapport"
+                    >
+                      <span
+                        className="vetra-saisie-progress-fill"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+
+                    <div
+                      className="vetra-section-rail"
+                      role="tablist"
+                      aria-label="Sections du rapport"
+                    >
+                      {visibleSections.map((sec) => {
+                        const items = permittedSections.filter(
+                          (id) => sectionGroup(id) === sec,
+                        );
+                        const doneInSec = items.filter((id) =>
+                          completedSteps.includes(id),
+                        ).length;
+                        const allDone =
+                          items.length > 0 && doneInSec === items.length;
+                        const unlocked =
+                          items.length > 0 &&
+                          (!editable ||
+                            !nextSection ||
+                            permittedSections.indexOf(items[0]) <=
+                              permittedSections.indexOf(nextSection));
+                        const isActive = sectionGroup(rubric) === sec;
+
+                        return (
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={isActive}
+                            key={sec}
+                            disabled={!unlocked}
+                            onClick={() =>
+                              setRubric(
+                                items.find(
+                                  (id) => !completedSteps.includes(id),
+                                ) || items[0],
+                              )
+                            }
+                            className={[
+                              'vetra-section-tab',
+                              isActive ? 'is-active' : '',
+                              allDone ? 'is-done' : '',
+                              !unlocked ? 'is-locked' : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
+                          >
+                            <span className="vetra-section-roman">{sec}</span>
+                            <span className="vetra-section-name">
+                              {SECTION_SHORT_LABELS[sec] || `Section ${sec}`}
+                            </span>
+                            <span className="vetra-section-state">
+                              {!unlocked ? (
+                                <Lock size={13} aria-hidden="true" />
+                              ) : allDone ? (
+                                <CheckCircle2 size={14} aria-hidden="true" />
+                              ) : (
+                                <span className="tabular-nums">
+                                  {doneInSec}/{items.length}
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {activeSectionRubrics.length > 1 && (
+                      <div className="vetra-rubric-grid">
+                        {activeSectionRubrics.map((id) => {
+                          const isDone = completedSteps.includes(id);
+                          const unlocked =
+                            !editable ||
+                            isDone ||
+                            id === nextSection ||
+                            !nextSection;
+                          const isCurrent = rubric === id;
+                          const label =
+                            canevas.rubrics.find((x: any) => x[0] === id)?.[3] ||
+                            '';
+
+                          return (
+                            <button
+                              type="button"
+                              key={id}
+                              disabled={!unlocked}
+                              onClick={() => setRubric(id)}
+                              className={[
+                                'vetra-rubric-card',
+                                isCurrent ? 'is-active' : '',
+                                isDone ? 'is-done' : '',
+                                !unlocked ? 'is-locked' : '',
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
+                            >
+                              <span
+                                className="vetra-rubric-card-icon"
+                                aria-hidden="true"
+                              >
+                                <RubricIcon id={id} size={17} />
+                              </span>
+                              <span className="vetra-rubric-card-body">
+                                <span className="vetra-rubric-card-top">
+                                  <span className="vetra-rubric-code">
+                                    {id}
+                                  </span>
+                                  {isDone ? (
+                                    <CheckCircle2
+                                      size={14}
+                                      className="vetra-rubric-check"
+                                      aria-hidden="true"
+                                    />
+                                  ) : !unlocked ? (
+                                    <Lock
+                                      size={13}
+                                      className="vetra-rubric-lock"
+                                      aria-hidden="true"
+                                    />
+                                  ) : null}
+                                </span>
+                                <span className="vetra-rubric-card-title">
+                                  {label}
+                                </span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {permittedSections.some((id) => id === rubric) && (
+                    <>
+                      <div className="vetra-active-rubric-bar">
+                        <div className="vetra-active-rubric-left">
+                          <RubricIcon id={rubric} colored />
+                          <div className="min-w-0">
+                            <h2 className="vetra-active-rubric-title">
+                              <span className="vetra-active-rubric-code">
+                                {rubric}
+                              </span>
+                              <span
+                                className="vetra-active-rubric-dash"
+                                aria-hidden="true"
+                              >
+                                —
+                              </span>
+                              <span>{activeRubricTitle}</span>
+                            </h2>
+                            <p className="vetra-active-rubric-hint">
+                              <Sigma size={12} aria-hidden="true" />
+                              <span>
+                                Les totaux surlignés se mettent à jour
+                                instantanément dès la saisie.
+                                {editable && nextSection
+                                  ? ' La rubrique suivante s’ouvre après enregistrement.'
+                                  : ''}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+
+                        {unlockedRubrics.length > 1 && (
+                          <div className="vetra-rubric-stepper">
+                            <button
+                              type="button"
+                              className="vetra-stepper-btn"
+                              disabled={!prevRubric}
+                              onClick={() => prevRubric && setRubric(prevRubric)}
+                              title={
+                                prevRubric
+                                  ? `Aller à ${prevRubric}`
+                                  : 'Première rubrique'
+                              }
+                            >
+                              <ChevronLeft size={16} aria-hidden="true" />
+                              <span>Précédente</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="vetra-stepper-btn"
+                              disabled={!nextUnlockedRubric}
+                              onClick={() =>
+                                nextUnlockedRubric &&
+                                setRubric(nextUnlockedRubric)
+                              }
+                              title={
+                                nextUnlockedRubric
+                                  ? `Aller à ${nextUnlockedRubric}`
+                                  : 'Dernière rubrique ouverte'
+                              }
+                            >
+                              <span>Suivante</span>
+                              <ChevronRight size={16} aria-hidden="true" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <fieldset disabled={busy} className="min-w-0">
+                        <CanevasTable
+                          rubric={rubric}
+                          values={values}
+                          setValues={setValues}
+                          editable={editable}
+                        />
+                      </fieldset>
+                    </>
+                  )}
+                </>
+              );
+            })()}
+
+            <div className="vetra-saisie-dock">
+              <div className="vetra-saisie-dock-primary">
+                <button
+                  type="button"
+                  disabled={!editable || busy || !permittedSections.length}
+                  className="vetra-dock-btn is-secondary"
+                  onClick={save}
+                >
+                  <Save size={16} aria-hidden="true" />
+                  <span>Enregistrer le brouillon</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    !editable || busy || !rubric || rubric !== nextSection
+                  }
+                  className="vetra-dock-btn is-primary"
+                  onClick={completeRubric}
+                >
+                  <span>Enregistrer et continuer</span>
+                  <ArrowRight size={16} aria-hidden="true" />
+                </button>
+                {!!permittedSections.length && !nextSection && (
+                  <button
+                    type="button"
+                    disabled={!editable || busy || !current?.id}
+                    className="vetra-dock-btn is-submit"
+                    onClick={() => action(current?.id || '', 'soumettre')}
+                  >
+                    <Send size={15} aria-hidden="true" />
+                    <span>Soumettre le rapport complet</span>
+                  </button>
+                )}
+              </div>
+
+              {current && (
+                <div
+                  className="vetra-saisie-dock-exports"
+                  aria-label="Exporter ou partager ce rapport"
+                >
                   <button
                     type="button"
                     title="Télécharger en Excel (XLSX)"
@@ -1111,7 +1340,7 @@ export default function Home() {
                     url={`/api/export?id=${encodeURIComponent(current.id)}&type=pdf`}
                     title={`Rapport ${current.month}/${current.year} · ${selectedService?.name ?? ''}`}
                   />
-                </>
+                </div>
               )}
             </div>
           </div>

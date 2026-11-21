@@ -1307,6 +1307,1031 @@ input:disabled {
   }
 }
 
+/* ==========================================================================
+   Interface de saisie mensuelle relookée & mise en valeur des totaux
+   ========================================================================== */
+
+.vetra-saisie-nav {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  background: #f6f9fc;
+  border: 1px solid #dce6f0;
+  border-radius: 14px;
+}
+
+.vetra-saisie-progress-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.vetra-saisie-progress-info {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.84rem;
+  color: #365068;
+}
+
+.vetra-saisie-progress-title {
+  font-weight: 700;
+  color: #102a43;
+}
+
+.vetra-saisie-progress-sep {
+  color: #9cb0c3;
+}
+
+.vetra-saisie-progress-count strong {
+  color: #102a43;
+  font-weight: 800;
+}
+
+.vetra-saisie-progress-pct {
+  font-weight: 800;
+  color: #0f7663;
+  font-size: 0.82rem;
+}
+
+.vetra-saisie-mode {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: #556d84;
+}
+
+.vetra-saisie-progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #e1eaf3;
+  overflow: hidden;
+}
+
+.vetra-saisie-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #11816d 0%, #19a087 100%);
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.vetra-section-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.vetra-section-tab {
+  flex: 1 1 8.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.58rem 0.78rem;
+  border-radius: 10px;
+  border: 1px solid #d9e4ee;
+  background: #ffffff;
+  color: #213c54;
+  font-size: 0.83rem;
+  font-weight: 650;
+  white-space: nowrap;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.16s ease;
+}
+
+.vetra-section-tab:hover:not(:disabled):not(.is-active) {
+  border-color: #9cb9cf;
+  background: #f9fcff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px #102a430e;
+}
+
+.vetra-section-roman {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.65rem;
+  height: 1.55rem;
+  padding: 0 0.35rem;
+  border-radius: 6px;
+  background: #eaf1f8;
+  color: #123451;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.vetra-section-name {
+  flex: 1 1 auto;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vetra-section-state {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #677f94;
+}
+
+.vetra-section-tab.is-done:not(.is-active) {
+  border-color: #b7dfd4;
+  background: #f3fbf8;
+}
+
+.vetra-section-tab.is-done:not(.is-active) .vetra-section-roman {
+  background: #d8f1e9;
+  color: #0d6857;
+}
+
+.vetra-section-tab.is-done:not(.is-active) .vetra-section-state {
+  color: #11816d;
+}
+
+.vetra-section-tab.is-active {
+  background: #123451;
+  border-color: #123451;
+  color: #ffffff;
+  box-shadow: 0 6px 16px #12345128;
+}
+
+.vetra-section-tab.is-active .vetra-section-roman {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.vetra-section-tab.is-active .vetra-section-state {
+  color: #8eead4;
+}
+
+.vetra-section-tab.is-locked {
+  background: #eef3f8;
+  border-color: #e1e8f0;
+  color: #8a9db0;
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.vetra-rubric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14.25rem), 1fr));
+  gap: 0.48rem;
+  padding-top: 0.15rem;
+}
+
+.vetra-rubric-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.62rem;
+  padding: 0.62rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid #dce6f0;
+  background: #ffffff;
+  color: #1b364f;
+  text-align: left;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.vetra-rubric-card:hover:not(:disabled):not(.is-active) {
+  border-color: #8eb6cc;
+  background: #fafdff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px #102a4310;
+}
+
+.vetra-rubric-card-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  border-radius: 8px;
+  background: #eef4fa;
+  color: #123451;
+}
+
+.vetra-rubric-card-body {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+}
+
+.vetra-rubric-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.vetra-rubric-code {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.vetra-rubric-check {
+  color: #11816d;
+  flex-shrink: 0;
+}
+
+.vetra-rubric-lock {
+  color: #93a6b8;
+  flex-shrink: 0;
+}
+
+.vetra-rubric-card-title {
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: #4d647a;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.vetra-rubric-card.is-done:not(.is-active) {
+  border-color: #c2e4da;
+  background: #f5fcf9;
+}
+
+.vetra-rubric-card.is-done:not(.is-active) .vetra-rubric-card-icon {
+  background: #dcf3ec;
+  color: #0e6f5d;
+}
+
+.vetra-rubric-card.is-active {
+  background: #123451;
+  border-color: #123451;
+  color: #ffffff;
+  box-shadow: 0 6px 16px #1234512a;
+}
+
+.vetra-rubric-card.is-active .vetra-rubric-card-icon {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.vetra-rubric-card.is-active .vetra-rubric-card-title {
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.vetra-rubric-card.is-active .vetra-rubric-check {
+  color: #7ee8cf;
+}
+
+.vetra-rubric-card.is-locked {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  opacity: 0.68;
+  cursor: not-allowed;
+}
+
+.vetra-rubric-card.is-locked .vetra-rubric-card-icon {
+  background: #e6edf4;
+  color: #94a3b8;
+}
+
+.vetra-rubric-card.is-locked .vetra-rubric-card-title {
+  color: #94a3b8;
+}
+
+/* En-tête de la rubrique active */
+.vetra-active-rubric-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  padding: 0.9rem 1.1rem;
+  background: #ffffff;
+  border: 1px solid #d9e4ee;
+  border-radius: 13px;
+}
+
+.vetra-active-rubric-left {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  flex: 1 1 20rem;
+}
+
+.vetra-active-rubric-title {
+  font-size: 1.06rem;
+  font-weight: 800;
+  color: #102a43;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.vetra-active-rubric-code {
+  color: #11816d;
+}
+
+.vetra-active-rubric-dash {
+  margin: 0 0.45rem;
+  color: #9eb3c6;
+  font-weight: 500;
+}
+
+.vetra-active-rubric-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.22rem;
+  font-size: 0.78rem;
+  color: #546d84;
+}
+
+.vetra-active-rubric-hint svg {
+  color: #11816d;
+  flex-shrink: 0;
+}
+
+.vetra-rubric-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.vetra-stepper-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 2.2rem;
+  padding: 0 0.78rem;
+  border-radius: 9px;
+  border: 1px solid #d5e1ec;
+  background: #f8fbfe;
+  color: #1b3852;
+  font-size: 0.8rem;
+  font-weight: 650;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.vetra-stepper-btn:hover:not(:disabled) {
+  background: #e9f5f1;
+  border-color: #11816d;
+  color: #0d6857;
+}
+
+/* Cartes de tableaux de saisie */
+.vetra-table-card {
+  border: 1px solid #d5e2ee;
+  border-radius: 14px;
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 4px 18px #102a430a;
+}
+
+.vetra-table-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.85rem 1.15rem;
+  background: linear-gradient(180deg, #f8fbfe 0%, #f1f6fb 100%);
+  border-bottom: 1px solid #dce6f0;
+}
+
+.vetra-table-card-title {
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: #102a43;
+  letter-spacing: -0.01em;
+}
+
+.vetra-table-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: #536b82;
+}
+
+.vetra-table-auto-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 650;
+  color: #0e6f5d;
+}
+
+.vetra-entry-scroll {
+  max-height: 68vh;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.vetra-entry-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 0.84rem;
+}
+
+.vetra-entry-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 0.78rem 0.9rem;
+  background: #edf3f9;
+  color: #16344f;
+  font-size: 0.77rem;
+  font-weight: 750;
+  line-height: 1.3;
+  border-bottom: 1.5px solid #cbd9e7;
+  box-shadow: 0 1px 0 #cbd9e7;
+  vertical-align: bottom;
+}
+
+.vetra-entry-table th.is-num-col,
+.vetra-entry-table td.is-num-col {
+  text-align: right;
+}
+
+.vetra-entry-table th.is-text-col,
+.vetra-entry-table td.is-text-col {
+  text-align: left;
+}
+
+.vetra-th-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+.vetra-entry-table th.is-num-col .vetra-th-inner {
+  justify-content: flex-end;
+}
+
+.vetra-entry-table thead th.is-total-col-head {
+  background: #ddf1ec;
+  color: #0a493e;
+  border-left: 1.5px solid #96cfc0;
+  border-bottom-color: #7cc0ae;
+}
+
+.vetra-th-sigma {
+  color: #0e705e;
+  flex-shrink: 0;
+}
+
+.vetra-entry-table tbody td {
+  padding: 0.62rem 0.85rem;
+  border-bottom: 1px solid #e7eef5;
+  color: #1c354c;
+  vertical-align: middle;
+}
+
+.vetra-entry-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.vetra-entry-table tbody tr.vetra-row-heading th {
+  position: static;
+  padding: 0.65rem 0.95rem;
+  background: #eaf1f8;
+  color: #102a43;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  border-top: 1.5px solid #cddbe9;
+  border-bottom: 1.5px solid #cddbe9;
+}
+
+.vetra-entry-table tbody tr.vetra-row-cat-start td {
+  border-top: 1.5px solid #d4e2ef;
+}
+
+.vetra-entry-table tbody tr.vetra-row-entry {
+  background: #ffffff;
+  transition: background-color 0.12s ease;
+}
+
+.vetra-entry-table tbody tr.vetra-row-entry:hover {
+  background: #f7fbff;
+}
+
+.vetra-cat-cell {
+  font-size: 0.77rem;
+  font-weight: 800;
+  color: #123451;
+  letter-spacing: 0.015em;
+  line-height: 1.35;
+}
+
+/* Champs de saisie numérique */
+.vetra-input-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  min-width: 6.2rem;
+}
+
+.vetra-num-input {
+  width: 100%;
+  height: 2.35rem;
+  padding: 0.35rem 0.7rem;
+  border: 1.5px solid #cfdbe7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #102a43;
+  text-align: right;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.vetra-num-input::-webkit-outer-spin-button,
+.vetra-num-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.vetra-num-input::placeholder {
+  color: #b0c1d1;
+  font-weight: 500;
+}
+
+.vetra-num-input:hover:not(:disabled) {
+  border-color: #93b0c9;
+  background: #fbfdff;
+}
+
+.vetra-num-input:focus:not(:disabled) {
+  outline: none;
+  border-color: #11816d;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px #11816d22;
+}
+
+.vetra-num-input.is-filled:not(:disabled) {
+  border-color: #8eb0cc;
+  background: #fbfdff;
+  color: #0b2239;
+  font-weight: 700;
+}
+
+.vetra-num-input:disabled {
+  background: #f6f9fc;
+  border-color: #e3ebf3;
+  color: #29445c;
+  cursor: default;
+}
+
+.vetra-num-input.has-unit {
+  padding-right: 3.15rem;
+}
+
+.vetra-input-unit {
+  position: absolute;
+  right: 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 650;
+  color: #6b8196;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   TOTAUX CALCULÉS — 3 niveaux visuels inratables dans toutes les sections
+   ========================================================================== */
+
+/* Rail vertical pour les colonnes Total (ex: I.A.1 col H, I.A.6 col I, I.B.1 col C, I.B.2 col H) */
+.vetra-entry-table tbody td.vetra-cell-total-col {
+  background: #f0faf7;
+  border-left: 1.5px solid #bfe3d8;
+}
+
+.vetra-entry-table tbody tr.vetra-row-entry:hover td.vetra-cell-total-col {
+  background: #e6f6f1;
+}
+
+/* NIVEAU 1 : Lignes de sous-total / total de catégorie (IV, V, I.C.1, VI.A) */
+.vetra-entry-table tbody tr.vetra-row-subtotal {
+  background: #e4f5f0;
+}
+
+.vetra-entry-table tbody tr.vetra-row-subtotal td {
+  padding-top: 0.72rem;
+  padding-bottom: 0.72rem;
+  border-top: 1.5px solid #89cbb9;
+  border-bottom: 2px solid #abdccf;
+  color: #0b4c41;
+}
+
+.vetra-total-cat-recall {
+  font-size: 0.76rem;
+  font-weight: 750;
+  color: #165e51;
+  letter-spacing: 0.015em;
+}
+
+.vetra-total-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.vetra-total-sigma {
+  flex-shrink: 0;
+}
+
+.vetra-row-subtotal .vetra-total-label {
+  color: #09473d;
+}
+
+.vetra-row-subtotal .vetra-total-sigma {
+  color: #11816d;
+}
+
+/* NIVEAU 2 : Lignes de TOTAL GÉNÉRAL de tableau (I.A.2..VI.B) */
+.vetra-entry-table tbody tr.vetra-row-grand-total {
+  background: #102a43;
+}
+
+.vetra-entry-table tbody tr.vetra-row-grand-total td {
+  padding-top: 0.82rem;
+  padding-bottom: 0.82rem;
+  border-top: 2px solid #091d30;
+  border-bottom: 0;
+  color: #ffffff;
+}
+
+.vetra-entry-table tbody tr.vetra-row-grand-total td.vetra-cell-total-col {
+  background: #0c2338;
+  border-left: 1.5px solid rgba(114, 224, 200, 0.35);
+}
+
+.vetra-row-grand-total .vetra-total-label {
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.vetra-row-grand-total .vetra-total-sigma {
+  color: #6ee7c8;
+}
+
+/* Boîtes <output> de résultats calculés (override propre du .scroll output générique) */
+.vetra-entry-table output.vetra-total-output {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  min-width: 6.2rem;
+  min-height: 2.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.94rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+/* Sous-total de catégorie */
+.vetra-entry-table output.vetra-total-output.is-subtotal {
+  background: #ffffff;
+  border: 1.5px solid #2b9781;
+  color: #08443a;
+  box-shadow: 0 2px 6px #11816d1c;
+}
+
+.vetra-entry-table output.vetra-total-output.is-subtotal.is-empty {
+  background: #f3fbf8;
+  border: 1.5px dashed #82c2b2;
+  color: #54897d;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+/* Colonne Total horizontale */
+.vetra-entry-table output.vetra-total-output.is-col-total {
+  background: #ffffff;
+  border: 1.5px solid #5bb39e;
+  color: #0b4d42;
+  box-shadow: 0 1px 4px #11816d14;
+}
+
+.vetra-entry-table output.vetra-total-output.is-col-total.is-empty {
+  background: #f7fcfb;
+  border: 1.5px dashed #99cfc1;
+  color: #65968b;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+/* Total général (sur bandeau bleu marine ONSSA) */
+.vetra-entry-table output.vetra-total-output.is-grand {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1.5px solid rgba(255, 255, 255, 0.36);
+  color: #ffffff;
+  font-size: 0.98rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.vetra-entry-table output.vetra-total-output.is-grand.is-empty {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px dashed rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.62);
+  font-weight: 700;
+  box-shadow: none;
+}
+
+/* Intersection Total général × Colonne Total (ex: I56, H88) */
+.vetra-entry-table output.vetra-total-output.is-intersection {
+  background: #11816d;
+  border: 1.5px solid #72e0c8;
+  color: #ffffff;
+  font-size: 1rem;
+  box-shadow: 0 4px 12px rgba(17, 129, 109, 0.42);
+}
+
+.vetra-entry-table output.vetra-total-output.is-intersection.is-empty {
+  background: rgba(17, 129, 109, 0.42);
+  border: 1.5px dashed rgba(114, 224, 200, 0.55);
+  color: rgba(255, 255, 255, 0.78);
+  box-shadow: none;
+}
+
+/* Rubriques dynamiques (I.D et II.C) */
+.vetra-dynamic-wrap {
+  display: grid;
+  gap: 1rem;
+}
+
+.vetra-dynamic-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #dce6f0;
+  border-radius: 12px;
+  background: #f8fbfe;
+}
+
+.vetra-dynamic-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  height: 2.35rem;
+  padding: 0 0.95rem;
+  border-radius: 9px;
+  background: #11816d;
+  color: #ffffff;
+  font-size: 0.83rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.vetra-dynamic-add:hover:not(:disabled) {
+  background: #0d6d5c;
+  transform: translateY(-1px);
+}
+
+.vetra-dynamic-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.35rem 1.25rem;
+  border: 1.5px dashed #cbd9e7;
+  border-radius: 13px;
+  background: #f9fcff;
+}
+
+.vetra-dynamic-empty-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 11px;
+  background: #e7f1fa;
+  color: #123451;
+  flex-shrink: 0;
+}
+
+.vetra-dynamic-card {
+  border: 1px solid #d5e2ee;
+  border-radius: 13px;
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 3px 12px #102a4308;
+}
+
+.vetra-dynamic-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: #f3f7fb;
+  border-bottom: 1px solid #e0e9f2;
+}
+
+.vetra-dynamic-legend {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #102a43;
+}
+
+.vetra-dynamic-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #f5c6cb;
+  background: #fff5f6;
+  color: #b42332;
+  font-size: 0.76rem;
+  font-weight: 700;
+  transition: background-color 0.15s ease;
+}
+
+.vetra-dynamic-remove:hover {
+  background: #fde4e7;
+}
+
+.vetra-dyn-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: #465f77;
+}
+
+.vetra-dyn-field input {
+  height: 2.35rem;
+  padding: 0.35rem 0.7rem;
+  border: 1.5px solid #cfdbe7;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #102a43;
+}
+
+.vetra-dyn-field input:focus:not(:disabled) {
+  outline: none;
+  border-color: #11816d;
+  box-shadow: 0 0 0 3px #11816d22;
+}
+
+/* Barre d'actions flottante en bas de la saisie */
+.vetra-saisie-dock {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 15;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1dfec;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 30px #102a431c;
+}
+
+.vetra-saisie-dock-primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.vetra-saisie-dock-exports {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid #dce6f0;
+}
+
+.vetra-dock-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.48rem;
+  height: 2.5rem;
+  padding: 0 1.05rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.16s ease;
+}
+
+.vetra-dock-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.vetra-dock-btn.is-secondary {
+  background: #ffffff;
+  border: 1.5px solid #bfd0e0;
+  color: #123451;
+}
+
+.vetra-dock-btn.is-secondary:hover:not(:disabled) {
+  background: #f1f6fb;
+  border-color: #123451;
+}
+
+.vetra-dock-btn.is-primary {
+  background: #11816d;
+  border: 1.5px solid #11816d;
+  color: #ffffff;
+  box-shadow: 0 4px 12px #11816d2e;
+}
+
+.vetra-dock-btn.is-primary:hover:not(:disabled) {
+  background: #0d6c5b;
+  border-color: #0d6c5b;
+}
+
+.vetra-dock-btn.is-submit {
+  background: #123451;
+  border: 1.5px solid #123451;
+  color: #ffffff;
+  box-shadow: 0 4px 12px #1234512e;
+}
+
+.vetra-dock-btn.is-submit:hover:not(:disabled) {
+  background: #0d263c;
+  border-color: #0d263c;
+}
+
+@media (max-width: 640px) {
+  .vetra-saisie-dock {
+    position: static;
+    backdrop-filter: none;
+  }
+  .vetra-saisie-dock-exports {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .vetra-entry-table tr.vetra-row-subtotal {
+    border-color: #6abaa6;
+    background: #e6f6f1;
+  }
+  .vetra-entry-table tr.vetra-row-grand-total {
+    border-color: #102a43;
+    background: #102a43;
+  }
+  .vetra-entry-table tr.vetra-row-grand-total td::before {
+    color: rgba(255, 255, 255, 0.78);
+  }
+  .vetra-entry-table td.vetra-cell-total-col {
+    border-left: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vetra-notifications.has-alerts:not([open]) .vetra-bell-icon,
   .vetra-notifications:not([open]) > summary:hover .vetra-bell-icon,
