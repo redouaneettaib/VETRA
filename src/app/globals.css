@@ -633,19 +633,78 @@ input:disabled {
   }
 }
 .vetra-action-icon {
+  width: 2.5rem;
+  height: 2.5rem;
   min-width: 2.5rem;
   min-height: 2.5rem;
+  flex: 0 0 2.5rem;
+  padding: 0;
   display: inline-grid;
   place-items: center;
-  border: 1px solid currentColor;
+  border: 1px solid #d5e0ea;
   border-radius: 0.65rem;
+  background: #ffffff;
+  box-shadow: 0 1px 3px #102a430d;
   transition:
-    filter 0.15s,
-    transform 0.15s;
+    transform 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background-color 0.16s ease;
 }
-.vetra-action-icon:hover {
-  filter: saturate(1.4);
+.vetra-action-icon:hover:not(:disabled) {
   transform: translateY(-1px);
+  box-shadow: 0 6px 14px #102a4318;
+}
+.vetra-action-icon:active:not(:disabled) {
+  transform: translateY(0);
+}
+.vetra-action-view {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.vetra-action-view:hover:not(:disabled) {
+  background: #dbeafe;
+  border-color: #60a5fa;
+}
+.vetra-action-excel {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.vetra-action-excel:hover:not(:disabled) {
+  background: #dcfce7;
+  border-color: #16a34a;
+}
+.vetra-action-pdf {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.vetra-action-pdf:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #dc2626;
+}
+.vetra-action-email {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.vetra-action-email:hover:not(:disabled) {
+  background: #dbeafe;
+  border-color: #2563eb;
+}
+.vetra-action-whatsapp {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.vetra-action-whatsapp:hover:not(:disabled) {
+  background: #dcfce7;
+  border-color: #22c55e;
+}
+.vetra-brand-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
 }
 .vetra-kpis button.vetra-kpi {
   text-align: left;

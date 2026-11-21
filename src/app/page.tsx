@@ -8,7 +8,6 @@ import {
   LogOut,
   ShieldCheck,
   Eye,
-  FileSpreadsheet,
   FileText,
   Building2,
   CircleDashed,
@@ -995,19 +994,33 @@ export default function Home() {
                     type="button"
                     title="Télécharger en Excel (XLSX)"
                     aria-label="Télécharger en Excel (XLSX)"
-                    className="vetra-action-icon text-emerald-800 bg-emerald-50"
+                    className="vetra-action-icon vetra-action-excel"
                     onClick={() => download(current.id, 'xlsx')}
                   >
-                    <FileSpreadsheet size={19} aria-hidden="true" />
+                    <img
+                      src="/icons/excel.png"
+                      alt=""
+                      width={22}
+                      height={22}
+                      className="vetra-brand-icon"
+                      referrerPolicy="no-referrer"
+                    />
                   </button>
                   <button
                     type="button"
-                    title="Télécharger en PDF"
-                    aria-label="Télécharger en PDF"
-                    className="vetra-action-icon text-rose-800 bg-rose-50"
+                    title="Télécharger en PDF (Acrobat Reader)"
+                    aria-label="Télécharger en PDF (Acrobat Reader)"
+                    className="vetra-action-icon vetra-action-pdf"
                     onClick={() => download(current.id, 'pdf')}
                   >
-                    <FileText size={19} aria-hidden="true" />
+                    <img
+                      src="/icons/acrobat.png"
+                      alt=""
+                      width={22}
+                      height={22}
+                      className="vetra-brand-icon"
+                      referrerPolicy="no-referrer"
+                    />
                   </button>
                   <ReportEmail
                     key={current.id}
@@ -1120,12 +1133,12 @@ export default function Home() {
                         </span>
                       </td>
                       <td>
-                        {r ? <div className="flex flex-wrap gap-1">
+                        {r ? <div className="flex flex-wrap items-center gap-1.5">
                           <button
                             type="button"
                             title="Consulter le rapport"
                             aria-label="Consulter le rapport"
-                            className="vetra-action-icon text-blue-800 bg-blue-50"
+                            className="vetra-action-icon vetra-action-view"
                             onClick={() => {
                               setService(s.id);
                               setTab('saisie');
@@ -1137,19 +1150,33 @@ export default function Home() {
                             type="button"
                             title="Télécharger en Excel (XLSX)"
                             aria-label="Télécharger en Excel (XLSX)"
-                            className="vetra-action-icon text-emerald-800 bg-emerald-50"
+                            className="vetra-action-icon vetra-action-excel"
                             onClick={() => download(r.id, 'xlsx')}
                           >
-                            <FileSpreadsheet size={19} aria-hidden="true" />
+                            <img
+                              src="/icons/excel.png"
+                              alt=""
+                              width={22}
+                              height={22}
+                              className="vetra-brand-icon"
+                              referrerPolicy="no-referrer"
+                            />
                           </button>
                           <button
                             type="button"
-                            title="Télécharger en PDF"
-                            aria-label="Télécharger en PDF"
-                            className="vetra-action-icon text-rose-800 bg-rose-50"
+                            title="Télécharger en PDF (Acrobat Reader)"
+                            aria-label="Télécharger en PDF (Acrobat Reader)"
+                            className="vetra-action-icon vetra-action-pdf"
                             onClick={() => download(r.id, 'pdf')}
                           >
-                            <FileText size={19} aria-hidden="true" />
+                            <img
+                              src="/icons/acrobat.png"
+                              alt=""
+                              width={22}
+                              height={22}
+                              className="vetra-brand-icon"
+                              referrerPolicy="no-referrer"
+                            />
                           </button>
                           <ReportEmail
                             endpoint={`/api/export/email?id=${encodeURIComponent(r.id)}`}

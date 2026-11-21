@@ -6,8 +6,6 @@ import {
   CalendarDays,
   Check,
   Copy,
-  FileSpreadsheet,
-  FileText,
   Loader2,
   Sparkles,
 } from 'lucide-react';
@@ -331,40 +329,50 @@ export default function Reporting({
           </p>
         </div>
         {analysis && (
-          <div className="flex flex-wrap items-start gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <a
-              className="vetra-action-icon text-emerald-800 bg-emerald-50"
+              className="vetra-action-icon vetra-action-excel"
               href={exportUrl('xlsx')}
               aria-label="Télécharger en Excel (XLSX)"
               title="Télécharger en Excel (XLSX)"
             >
-              <FileSpreadsheet size={19} aria-hidden="true" />
+              <img
+                src="/icons/excel.png"
+                alt=""
+                width={22}
+                height={22}
+                className="vetra-brand-icon"
+                referrerPolicy="no-referrer"
+              />
             </a>
             <a
-              className="vetra-action-icon text-rose-800 bg-rose-50"
+              className="vetra-action-icon vetra-action-pdf"
               href={exportUrl('pdf')}
-              aria-label="Télécharger en PDF"
-              title="Télécharger en PDF"
+              aria-label="Télécharger en PDF (Acrobat Reader)"
+              title="Télécharger en PDF (Acrobat Reader)"
             >
-              <FileText size={19} aria-hidden="true" />
+              <img
+                src="/icons/acrobat.png"
+                alt=""
+                width={22}
+                height={22}
+                className="vetra-brand-icon"
+                referrerPolicy="no-referrer"
+              />
             </a>
-            <div className="text-navy">
-              <ReportEmail
-                key={'email-' + exportUrl('pdf')}
-                endpoint={exportUrl('pdf').replace(
-                  '/api/analytics/export?',
-                  '/api/analytics/email?',
-                )}
-                title={`Reporting ${analysis.period}`}
-              />
-            </div>
-            <div className="text-navy">
-              <ReportShare
-                key={exportUrl('pdf')}
-                url={exportUrl('pdf')}
-                title={`Reporting ${analysis.period}`}
-              />
-            </div>
+            <ReportEmail
+              key={'email-' + exportUrl('pdf')}
+              endpoint={exportUrl('pdf').replace(
+                '/api/analytics/export?',
+                '/api/analytics/email?',
+              )}
+              title={`Reporting ${analysis.period}`}
+            />
+            <ReportShare
+              key={exportUrl('pdf')}
+              url={exportUrl('pdf')}
+              title={`Reporting ${analysis.period}`}
+            />
           </div>
         )}
       </div>

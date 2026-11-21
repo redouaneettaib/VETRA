@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useRef, useState, type FormEvent } from 'react';
-import { Mail, Paperclip } from 'lucide-react';
+import { Paperclip } from 'lucide-react';
 
 export default function ReportEmail({
   endpoint,
@@ -43,10 +43,12 @@ export default function ReportEmail({
   }
 
   return (
-    <div className="space-y-1">
+    <>
       <button
         type="button"
-        className="btn alt inline-flex items-center gap-2"
+        className="vetra-action-icon vetra-action-email"
+        title={sent ? `Envoyé à ${sent}` : 'Envoyer par e-mail (PDF joint)'}
+        aria-label="Envoyer par e-mail (PDF joint)"
         onClick={() => {
           setRecipient('');
           setSent('');
@@ -54,13 +56,15 @@ export default function ReportEmail({
           dialog.current?.showModal();
         }}
       >
-        <Mail size={16} /> E-mail
+        <img
+          src="/icons/email.png"
+          alt=""
+          width={22}
+          height={22}
+          className="vetra-brand-icon"
+          referrerPolicy="no-referrer"
+        />
       </button>
-      {sent && (
-        <p className="text-sm text-emerald-700 break-words" role="status">
-          Rapport envoyé à {sent}.
-        </p>
-      )}
       <dialog
         ref={dialog}
         aria-labelledby={titleId}
@@ -110,6 +114,6 @@ export default function ReportEmail({
           </div>
         </form>
       </dialog>
-    </div>
+    </>
   );
 }
