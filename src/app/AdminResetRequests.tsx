@@ -1,0 +1,119 @@
+'use client';
+
+import { KeyRound, X } from 'lucide-react';
+
+export interface PendingResetRequest {
+  id: string;
+  userId: string;
+  name: string;
+  firstName: string;
+  email: string;
+  phone: string;
+  role: string;
+  serviceName: string;
+  regionName: string;
+  note: string;
+  createdAt: string;
+}
+
+export default function AdminResetRequests({
+  requests,
+  busy,
+  onSelectUser,
+  onDismiss,
+}: {
+  requests: PendingResetRequest[];
+  busy: boolean;
+  onSelectUser: (userId: string) => void;
+  onDismiss: (userId: string) => void;
+}) {
+  if (!requests.length) return null;
+
+  return (
+    <div className="panel space-y-3 border-amber-200 bg-amber-50/40">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="font-bold text-navy flex items-center gap-2">
+            <KeyRound size={17} className="text-amber-700" aria-hidden="true" />
+            Demandes de réinitialisation en attente ({requests.length})
+          </h2>
+          <p className="text-sm text-slate-600 mt-0.5">
+            Ces utilisateurs ont sollicité l’administrateur depuis l’écran de
+            connexion. Générez un code à 6 chiffres ou définissez un nouveau mot
+            de passe.
+          </p>
+        </div>
+      </div>
+
+      <div className="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Utilisateur</th>
+              <th>Rattachement &amp; note</th>
+              <th>Date</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map((req) => (
+              <tr key={req.id}>
+                <td>
+                  <strong className="text-navy">
+                    {req.firstName} {req.name}
+                  </strong>
+                  <div className="text-xs text-slate-600">
+                    {req.email}
+                    {req.phone ? ` · ${req.phone}` : ''}
+                  </div>
+                </td>
+                <td>
+                  <div className="text-xs text-slate-700">
+                    {[req.role, req.serviceName || req.regionName]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </div>
+                  {req.note && (
+                    <div className="text-xs text-slate-600 mt-0.5">
+                      {req.note}
+                    </div>
+                  )}
+                </td>
+                <td className="text-xs text-slate-600 tabular-nums whitespace-nowrap">
+                  {new Date(req.createdAt).toLocaleString('fr-FR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </td>
+                <td>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="btn green whitespace-nowrap shrink-0"
+                      disabled={busy}
+                      onClick={() => onSelectUser(req.userId)}
+                    >
+                      Traiter
+                    </button>
+                    <button
+                      type="button"
+                      className="btn alt inline-flex items-center gap-1 whitespace-nowrap shrink-0"
+                      disabled={busy}
+                      onClick={() => onDismiss(req.userId)}
+                    >
+                      <X size={14} aria-hidden="true" />
+                      Clôturer
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

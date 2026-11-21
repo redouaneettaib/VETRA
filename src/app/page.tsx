@@ -19,6 +19,7 @@ import {
   CirclePercent,
   Users,
   KeyRound,
+  Mail,
 } from 'lucide-react';
 
 import CanevasTable from './CanevasTable';
@@ -27,6 +28,11 @@ import ReportShare from './ReportShare';
 import ReportEmail from './ReportEmail';
 import LoginScreen from './LoginScreen';
 import PasswordChange from './PasswordChange';
+import AdminMailDiagnostics from './AdminMailDiagnostics';
+import AdminPasswordReset from './AdminPasswordReset';
+import AdminResetRequests, {
+  type PendingResetRequest,
+} from './AdminResetRequests';
 import RubricIcon from './RubricIcon';
 import RegionalMap from './RegionalMap';
 import ReportNotifications from './ReportNotifications';
@@ -44,8 +50,8 @@ function Brand() {
         />
       </span>
       <img
-        src="/vetra-logo.jpg"
-        alt="VETRA — Veille, Traçabilité et Reporting"
+        src="/vetra-bouclier.jpg"
+        alt="VETRA — Veille, Traçabilité et Reporting des Activités des Services Vétérinaires"
         className="vetra-brand-logo"
         referrerPolicy="no-referrer"
       />
@@ -92,14 +98,18 @@ export default function Home() {
   async function reload() {
     const u = await api('me');
     setMe(u);
-    const [o, c, r] = await Promise.all([
+    const [o, c, r, rr] = await Promise.all([
       api('org'),
       api('canevas'),
       api(`reports?year=${year}&month=${month}`),
+      u.user.role === 'ADMIN_NATIONAL'
+        ? api('admin/reset-requests').catch(() => [])
+        : Promise.resolve([]),
     ]);
     setOrg(o);
     setCanevas(c);
     setReports(r);
+    setResetRequests(Array.isArray(rr) ? rr : []);
     setLoadedPeriod(year + '-' + month);
     setService((prev) =>
       o.services.some((s: Any) => s.id === prev)
@@ -177,6 +187,9 @@ export default function Home() {
   const [adminSection, setAdminSection] = useState('organisation');
   const [editingUserId, setEditingUserId] = useState('');
   const editingUser = org.users.find((user: Any) => user.id === editingUserId);
+  const [resettingUserId, setResettingUserId] = useState('');
+  const resettingUser = org.users.find((user: Any) => user.id === resettingUserId);
+  const [resetRequests, setResetRequests] = useState<PendingResetRequest[]>([]);
   const [unvalidatedOnly, setUnvalidatedOnly] = useState(false);
   const unvalidatedReports = periodReady
     ? reports.filter((report) => report.status !== 'VALIDE')
@@ -1079,14 +1092,21 @@ export default function Home() {
               {[
                 { id: 'organisation', label: 'Organisation', Icon: Building2 },
                 { id: 'services', label: 'Services', Icon: ClipboardList },
-                { id: 'comptes', label: 'Comptes utilisateurs', Icon: Users },
+                {
+                  id: 'comptes',
+                  label: resetRequests.length
+                    ? `Comptes utilisateurs (${resetRequests.length})`
+                    : 'Comptes utilisateurs',
+                  Icon: Users,
+                },
                 { id: 'droits', label: 'Habilitations', Icon: KeyRound },
+                { id: 'messagerie', label: 'Messagerie', Icon: Mail },
               ].map(({ id, label, Icon }) => (
                 <button
                   type="button"
                   key={id}
                   aria-current={adminSection === id ? 'page' : undefined}
-                  className={`btn inline-flex items-center gap-2 ${adminSection === id ? '' : 'alt'}`}
+                  className={`btn inline-flex items-center gap-2 whitespace-nowrap shrink-0 ${adminSection === id ? '' : 'alt'}`}
                   onClick={() => setAdminSection(id)}
                 >
                   <Icon size={17} aria-hidden="true" />
@@ -1343,6 +1363,48 @@ export default function Home() {
               </div>
             )}
             {adminSection === 'comptes' && (
+              <AdminResetRequests
+                requests={resetRequests}
+                busy={busy}
+                onSelectUser={(userId) => {
+                  setEditingUserId('');
+                  setResettingUserId(userId);
+                  setTimeout(() => {
+                    document
+                      .getElementById('admin-reset-password-panel')
+                      ?.scrollIntoView({ block: 'nearest' });
+                  }, 0);
+                }}
+                onDismiss={async (userId) => {
+                  setBusy(true);
+                  try {
+                    await api('admin', {
+                      action: 'dismissResetRequest',
+                      id: userId,
+                    });
+                    await reload();
+                    tell('Demande clôturée');
+                  } catch (e: any) {
+                    tell(e.message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              />
+            )}
+            {adminSection === 'comptes' && resettingUser && (
+              <AdminPasswordReset
+                user={resettingUser}
+                api={api}
+                onResolved={reload}
+                onDone={(msg) => {
+                  setResettingUserId('');
+                  tell(msg);
+                }}
+                onCancel={() => setResettingUserId('')}
+              />
+            )}
+            {adminSection === 'comptes' && (
               <div className="panel">
                 <h2 className="font-bold mb-3">Comptes utilisateurs</h2>
                 <div className="scroll">
@@ -1366,39 +1428,56 @@ export default function Home() {
                           <td>{user.role}</td>
                           <td>{user.active ? 'Actif' : 'Désactivé'}</td>
                           <td>
-                            <button
-                              type="button"
-                              className="btn alt mr-2"
-                              disabled={busy}
-                              onClick={() => {
-                                setEditingUserId(user.id);
-                                document.getElementById('admin-user-form')?.scrollIntoView({ block: 'start' });
-                              }}
-                            >
-                              Modifier
-                            </button>
-                            <button
-                              className="btn alt"
-                              disabled={user.id === me.user.id || busy}
-                              onClick={async () => {
-                                setBusy(true);
-                                try {
-                                  await api('admin', {
-                                    action: 'userUpdate',
-                                    id: user.id,
-                                    active: !user.active,
-                                  });
-                                  await reload();
-                                  tell('Compte mis à jour');
-                                } catch (e: any) {
-                                  tell(e.message);
-                                } finally {
-                                  setBusy(false);
-                                }
-                              }}
-                            >
-                              {user.active ? 'Désactiver' : 'Réactiver'}
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                className="btn alt whitespace-nowrap shrink-0"
+                                disabled={busy}
+                                onClick={() => {
+                                  setResettingUserId('');
+                                  setEditingUserId(user.id);
+                                  document.getElementById('admin-user-form')?.scrollIntoView({ block: 'start' });
+                                }}
+                              >
+                                Modifier
+                              </button>
+                              <button
+                                type="button"
+                                className="btn alt whitespace-nowrap shrink-0"
+                                disabled={busy}
+                                onClick={() => {
+                                  setEditingUserId('');
+                                  setResettingUserId(user.id);
+                                  setTimeout(() => {
+                                    document.getElementById('admin-reset-password-panel')?.scrollIntoView({ block: 'nearest' });
+                                  }, 0);
+                                }}
+                              >
+                                Réinitialiser MDP
+                              </button>
+                              <button
+                                className="btn alt whitespace-nowrap shrink-0"
+                                disabled={user.id === me.user.id || busy}
+                                onClick={async () => {
+                                  setBusy(true);
+                                  try {
+                                    await api('admin', {
+                                      action: 'userUpdate',
+                                      id: user.id,
+                                      active: !user.active,
+                                    });
+                                    await reload();
+                                    tell('Compte mis à jour');
+                                  } catch (e: any) {
+                                    tell(e.message);
+                                  } finally {
+                                    setBusy(false);
+                                  }
+                                }}
+                              >
+                                {user.active ? 'Désactiver' : 'Réactiver'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1406,6 +1485,9 @@ export default function Home() {
                   </table>
                 </div>
               </div>
+            )}
+            {adminSection === 'messagerie' && (
+              <AdminMailDiagnostics api={api} />
             )}
             {adminSection === 'droits' && (
               <div className="panel">

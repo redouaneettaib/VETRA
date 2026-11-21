@@ -7,7 +7,7 @@ type Phase = 'login' | 'otp' | 'request' | 'reset';
 type Submit = (
   path: string,
   data: Record<string, string>,
-) => Promise<{ otpRequired?: boolean; cooldown?: boolean }>;
+) => Promise<{ otpRequired?: boolean; mode?: 'admin' | 'email' }>;
 export default function LoginScreen({
   brand,
   submit,
@@ -19,6 +19,7 @@ export default function LoginScreen({
 }) {
   const [phase, setPhase] = useState<Phase>('login');
   const [email, setEmail] = useState('');
+  const [note, setNote] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -70,13 +71,21 @@ export default function LoginScreen({
         });
         await onLogin();
       } else if (phase === 'request') {
-        await submit('password/request', {
+        const result = await submit('password/request', {
           email: normalizedEmail,
+          ...(note.trim() ? { note: note.trim() } : {}),
         });
-        update('reset');
-        setNotice(
-          'Si cette adresse correspond à un compte actif, un code de réinitialisation à six chiffres a été envoyé (valable 10 minutes).',
-        );
+        setNote('');
+        if (result?.mode === 'email') {
+          update('reset');
+          setNotice(
+            'Votre demande a été transmise. Saisissez le code à six chiffres reçu par e-mail ou communiqué par l’administrateur national.',
+          );
+        } else {
+          setNotice(
+            'Votre demande de réinitialisation a été transmise à l’administrateur national. Dès qu’il vous aura communiqué un code à six chiffres (ou défini un nouveau mot de passe), vous pourrez réaccéder à votre compte.',
+          );
+        }
       } else {
         await submit('password/reset', {
           email: normalizedEmail,
@@ -106,9 +115,9 @@ export default function LoginScreen({
     login: '',
     otp: 'Entrez le code de vérification à 6 chiffres envoyé à votre adresse professionnelle.',
     request:
-      'Saisissez votre e-mail professionnel pour recevoir un code de réinitialisation valable 10 minutes.',
+      'Saisissez votre e-mail professionnel pour notifier l’administrateur national. Il pourra réinitialiser votre accès ou vous communiquer un code à 6 chiffres.',
     reset:
-      'Saisissez le code reçu par e-mail puis définissez un nouveau mot de passe d’au moins 12 caractères.',
+      'Saisissez le code à 6 chiffres communiqué par l’administrateur national (ou reçu par e-mail) puis choisissez un nouveau mot de passe.',
   }[phase];
   return (
     <main className="vetra-cover">
@@ -171,6 +180,19 @@ export default function LoginScreen({
               onChange={(event) => setEmail(event.target.value)}
             />
           </label>
+          {phase === 'request' && (
+            <label className="field text-sm font-medium">
+              Téléphone ou service (facultatif)
+              <input
+                type="text"
+                maxLength={200}
+                placeholder="Ex. 06 XX XX XX XX · Service vétérinaire..."
+                value={note}
+                disabled={busy}
+                onChange={(event) => setNote(event.target.value)}
+              />
+            </label>
+          )}
           {(phase === 'otp' || phase === 'reset') && (
             <label className="field text-sm font-medium">
               Code à six chiffres
@@ -241,7 +263,7 @@ export default function LoginScreen({
               : {
                   login: 'Se connecter',
                   otp: 'Vérifier le code',
-                  request: 'Envoyer un code',
+                  request: 'Transmettre la demande à l’administrateur',
                   reset: 'Enregistrer le mot de passe',
                 }[phase]}
           </button>
@@ -260,7 +282,7 @@ export default function LoginScreen({
               Mot de passe oublié ?
             </>
           ) : phase === 'reset' ? (
-            <>Demander un nouveau code</>
+            <>Refaire une demande à l’administrateur</>
           ) : (
             <>
               <ArrowLeft size={15} />
@@ -276,7 +298,7 @@ export default function LoginScreen({
             onClick={() => update('reset')}
           >
             <KeyRound size={15} />
-            J’ai déjà reçu un code
+            J’ai reçu un code à 6 chiffres
           </button>
         )}
         {phase === 'reset' && (

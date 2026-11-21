@@ -11,7 +11,13 @@ import {
 import { CANEVAS, RUBRICS } from '@/lib/canevas';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
-import { email, mailConfigured } from '@/lib/mail';
+import {
+  buildAdminResetNoticeHtml,
+  buildOtpEmailHtml,
+  email,
+  mailConfigured,
+  mailStatus,
+} from '@/lib/mail';
 import { z } from 'zod';
 import {
   calculate,
@@ -30,6 +36,13 @@ const obj = (v: unknown): Input =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Input) : {};
 const isAdmin = (role: string) => role === 'ADMIN_NATIONAL';
 const recipientAddress = z.string().trim().max(254).email();
+const findUserByEmail = (address: string) => {
+  const normalized = address.trim();
+  if (!normalized) return Promise.resolve(null);
+  return db.user.findFirst({
+    where: { email: { equals: normalized, mode: 'insensitive' } },
+  });
+};
 
 async function sendReportEmail(
   recipient: string,
@@ -81,14 +94,21 @@ async function otp(userId: string, purpose: string, to: string) {
     purpose === 'RESET'
       ? 'VETRA — Réinitialisation du mot de passe'
       : 'VETRA — Code de vérification';
+  const html = buildOtpEmailHtml(purpose === 'RESET' ? 'RESET' : 'LOGIN', code);
   try {
     await email(
       to,
       subject,
       `Code à usage unique : ${code}. Expiration : 10 minutes.`,
+      undefined,
+      html,
     );
     return { cooldown: false };
   } catch (error) {
+    console.error(
+      'VETRA OTP mail delivery failed:',
+      error instanceof Error ? error.message : 'unknown error',
+    );
     await db.otp.update({
       where: { id: challenge.id },
       data: { consumed: true },
@@ -137,13 +157,7 @@ async function handle(
     method === 'POST' ? obj(await req.json().catch(() => ({}))) : {};
   const u = await currentUser();
   if (path === 'login' && method === 'POST') {
-    const user = await db.user.findUnique({
-      where: {
-        email: String(body.email || '')
-          .trim()
-          .toLowerCase(),
-      },
-    });
+    const user = await findUserByEmail(String(body.email || ''));
     if (
       !user ||
       !user.active ||
@@ -156,24 +170,25 @@ async function handle(
           'L’envoi du code OTP est indisponible. Le serveur de messagerie doit être configuré.',
           503,
         );
-      await otp(user.id, 'LOGIN', user.email);
+      try {
+        await otp(user.id, 'LOGIN', user.email);
+      } catch {
+        return fail(
+          'Le serveur de messagerie n’a pas confirmé l’envoi du code OTP. Contactez l’administrateur national.',
+          502,
+        );
+      }
       return Response.json({ otpRequired: true, email: user.email });
     }
     await setSession(user.id);
     return Response.json({ ok: true });
   }
   if (path === 'otp/verify' && method === 'POST') {
-    const user = await db.user.findUnique({
-      where: {
-        email: String(body.email || '')
-          .trim()
-          .toLowerCase(),
-      },
-    });
+    const user = await findUserByEmail(String(body.email || ''));
     if (
       !user ||
       !user.active ||
-      !(await verifyOtp(user.id, 'LOGIN', String(body.code || '')))
+      !(await verifyOtp(user.id, 'LOGIN', String(body.code || '').trim()))
     )
       return fail('Code incorrect ou expiré', 401);
     await setSession(user.id);
@@ -187,25 +202,42 @@ async function handle(
     );
     if (!parsedEmail.success)
       return fail('Saisissez une adresse e-mail professionnelle valide.', 400);
-    if (!mailConfigured())
-      return fail(
-        'L’envoi du code est indisponible. Le serveur de messagerie doit être configuré.',
-        503,
-      );
-    const user = await db.user.findUnique({
-      where: { email: parsedEmail.data },
-    });
+    const note =
+      typeof body.note === 'string'
+        ? body.note.replace(/[\x00-\x1f]/g, ' ').trim().slice(0, 200)
+        : '';
+    const user = await findUserByEmail(parsedEmail.data);
+    const hasMail = mailConfigured();
     if (user && user.active) {
-      try {
-        await otp(user.id, 'RESET', user.email);
-      } catch {
-        return fail(
-          'Le serveur de messagerie n’a pas confirmé l’envoi du code. Réessayez dans quelques instants.',
-          502,
-        );
+      const recentRequest = await db.event.findFirst({
+        where: {
+          userId: user.id,
+          action: 'PASSWORD_RESET_REQUEST',
+          createdAt: { gt: new Date(Date.now() - 5 * 60_000) },
+        },
+        select: { id: true },
+      });
+      if (!recentRequest) {
+        await db.event.create({
+          data: {
+            userId: user.id,
+            action: 'PASSWORD_RESET_REQUEST',
+            reason: note || 'Demande depuis l’écran de connexion',
+          },
+        });
+      }
+      if (hasMail) {
+        try {
+          await otp(user.id, 'RESET', user.email);
+        } catch (error) {
+          console.error(
+            'VETRA reset email failed (admin request still recorded):',
+            error instanceof Error ? error.message : 'unknown error',
+          );
+        }
       }
     }
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, mode: hasMail ? 'email' : 'admin' });
   }
   if (path === 'password/reset' && method === 'POST') {
     const parsedEmail = recipientAddress.safeParse(
@@ -223,9 +255,7 @@ async function handle(
       Buffer.byteLength(password, 'utf8') > 72
     )
       return fail('Code invalide ou mot de passe trop court');
-    const user = await db.user.findUnique({
-      where: { email: parsedEmail.data },
-    });
+    const user = await findUserByEmail(parsedEmail.data);
     if (
       !user ||
       !user.active ||
@@ -241,6 +271,13 @@ async function handle(
       db.otp.updateMany({
         where: { userId: user.id, purpose: 'RESET', consumed: false },
         data: { consumed: true },
+      }),
+      db.event.create({
+        data: {
+          userId: user.id,
+          action: 'PASSWORD_RESET_RESOLVED',
+          reason: 'Mot de passe réinitialisé par code à usage unique',
+        },
       }),
     ]);
     return Response.json({ ok: true });
@@ -331,6 +368,61 @@ async function handle(
       users,
     });
   }
+  if (path === 'admin/mail-status' && method === 'GET') {
+    if (!isAdmin(u.role)) return fail('Accès administrateur requis', 403);
+    return Response.json(mailStatus(), {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  }
+  if (path === 'admin/reset-requests' && method === 'GET') {
+    if (!isAdmin(u.role)) return fail('Accès administrateur requis', 403);
+    const events = await db.event.findMany({
+      where: {
+        action: { in: ['PASSWORD_RESET_REQUEST', 'PASSWORD_RESET_RESOLVED'] },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 500,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            firstName: true,
+            email: true,
+            phone: true,
+            role: true,
+            active: true,
+            service: { select: { name: true } },
+            region: { select: { name: true } },
+          },
+        },
+      },
+    });
+    const seen = new Set<string>();
+    const pending = [];
+    for (const event of events) {
+      if (seen.has(event.userId)) continue;
+      seen.add(event.userId);
+      if (event.action === 'PASSWORD_RESET_REQUEST' && event.user.active) {
+        pending.push({
+          id: event.id,
+          userId: event.user.id,
+          name: event.user.name,
+          firstName: event.user.firstName,
+          email: event.user.email,
+          phone: event.user.phone ?? '',
+          role: event.user.role,
+          serviceName: event.user.service?.name ?? '',
+          regionName: event.user.region?.name ?? '',
+          note: event.reason ?? '',
+          createdAt: event.createdAt,
+        });
+      }
+    }
+    return Response.json(pending, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  }
   if (path === 'admin' && method === 'POST') {
     if (!isAdmin(u.role)) return fail('Accès administrateur requis', 403);
     let result: any;
@@ -405,7 +497,7 @@ async function handle(
         const id = String(body.id ?? '');
         const account = await db.user.findUnique({ where: { id }, select: { email: true } });
         if (!account) return fail('Compte introuvable', 404);
-        const owner = await db.user.findUnique({ where: { email }, select: { id: true } });
+        const owner = await findUserByEmail(email);
         if (owner && owner.id !== id) return fail('Cette adresse e-mail est déjà utilisée', 409);
         const updated = await db.user.update({
           where: { id },
@@ -488,6 +580,174 @@ async function handle(
         ),
       );
       result = { ok: true };
+    } else if (body.action === 'userResetPassword') {
+      const id = String(body.id ?? '').trim();
+      const password = body.password;
+      if (
+        !id ||
+        typeof password !== 'string' ||
+        password.length < 12 ||
+        Buffer.byteLength(password, 'utf8') > 72
+      )
+        return fail(
+          'Le mot de passe doit contenir au moins 12 caractères (72 octets maximum).',
+        );
+      const target = await db.user.findUnique({
+        where: { id },
+        select: { id: true, email: true, active: true },
+      });
+      if (!target) return fail('Compte introuvable', 404);
+      const passwordHash = await bcrypt.hash(password, 12);
+      await db.$transaction([
+        db.user.update({
+          where: { id: target.id },
+          data: { passwordHash },
+        }),
+        db.otp.updateMany({
+          where: { userId: target.id, consumed: false },
+          data: { consumed: true },
+        }),
+        db.event.create({
+          data: {
+            userId: u.id,
+            action: 'ADMIN_RESET_PASSWORD',
+            reason: `Réinitialisation administrateur pour ${target.email}`,
+          },
+        }),
+        db.event.create({
+          data: {
+            userId: target.id,
+            action: 'PASSWORD_RESET_RESOLVED',
+            reason: `Mot de passe réinitialisé par ${u.firstName} ${u.name}`,
+          },
+        }),
+      ]);
+      let notified = false;
+      let notifyError = '';
+      if (body.notifyByEmail === true && mailConfigured()) {
+        try {
+          await email(
+            target.email,
+            'VETRA — Mot de passe réinitialisé',
+            'Bonjour,\n\nL’administrateur national a réinitialisé le mot de passe de votre compte VETRA. Par mesure de sécurité, le nouveau mot de passe temporaire n’est pas transmis par e-mail. Rapprochez-vous de votre administrateur pour le récupérer puis modifiez-le dès votre connexion.\n\nONSSA / DPA — VETRA',
+            undefined,
+            buildAdminResetNoticeHtml(),
+          );
+          notified = true;
+        } catch (cause) {
+          notifyError =
+            cause instanceof Error
+              ? cause.message
+              : 'Notification par e-mail non confirmée.';
+        }
+      }
+      return Response.json({
+        ok: true,
+        id: target.id,
+        notified,
+        ...(notifyError ? { notifyError } : {}),
+      });
+    } else if (body.action === 'userGenerateResetCode') {
+      const id = String(body.id ?? '').trim();
+      if (!id) return fail('Compte introuvable', 404);
+      const target = await db.user.findUnique({
+        where: { id },
+        select: { id: true, email: true, active: true },
+      });
+      if (!target) return fail('Compte introuvable', 404);
+      if (!target.active)
+        return fail('Réactivez d’abord ce compte avant de générer un code.', 409);
+      const code = String(crypto.randomInt(100000, 1000000));
+      const hash = await bcrypt.hash(code, 10);
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60_000);
+      await db.$transaction([
+        db.otp.updateMany({
+          where: { userId: target.id, purpose: 'RESET', consumed: false },
+          data: { consumed: true },
+        }),
+        db.otp.create({
+          data: {
+            userId: target.id,
+            purpose: 'RESET',
+            hash,
+            expiresAt,
+          },
+        }),
+        db.event.create({
+          data: {
+            userId: u.id,
+            action: 'ADMIN_GENERATED_RESET_CODE',
+            reason: `Code de réinitialisation généré pour ${target.email}`,
+          },
+        }),
+        db.event.create({
+          data: {
+            userId: target.id,
+            action: 'PASSWORD_RESET_RESOLVED',
+            reason: `Code temporaire 24h généré par ${u.firstName} ${u.name}`,
+          },
+        }),
+      ]);
+      return Response.json(
+        {
+          ok: true,
+          id: target.id,
+          code,
+          expiresAt: expiresAt.toISOString(),
+        },
+        { headers: { 'Cache-Control': 'private, no-store' } },
+      );
+    } else if (body.action === 'dismissResetRequest') {
+      const id = String(body.id ?? '').trim();
+      if (!id) return fail('Compte introuvable', 404);
+      const target = await db.user.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+      if (!target) return fail('Compte introuvable', 404);
+      await db.event.create({
+        data: {
+          userId: target.id,
+          action: 'PASSWORD_RESET_RESOLVED',
+          reason: `Demande clôturée par ${u.firstName} ${u.name}`,
+        },
+      });
+      return Response.json({ ok: true, id: target.id });
+    } else if (body.action === 'mailTest') {
+      const checked = recipientAddress.safeParse(body.recipient);
+      if (!checked.success)
+        return fail('Saisissez une adresse e-mail destinataire valide.', 400);
+      const status = mailStatus();
+      if (!status.configured)
+        return fail(
+          `Messagerie non configurée. Variables serveur requises : ${status.missing.join(', ')}.`,
+          503,
+        );
+      try {
+        const sent = await email(
+          checked.data,
+          'VETRA — Test de la messagerie',
+          `Bonjour,\n\nCeci est un e-mail de test envoyé depuis l’administration VETRA via ${status.provider.toUpperCase()} (${status.from}).\n\nONSSA / DPA — VETRA`,
+          undefined,
+          buildOtpEmailHtml('LOGIN', '000000').replace(
+            'Pour confirmer votre connexion à la plateforme VETRA, saisissez le code à usage unique ci-dessous :',
+            'Ceci est un e-mail de vérification envoyé depuis le module de diagnostic messagerie VETRA. Votre configuration d’envoi fonctionne correctement.',
+          ).replace('000000', 'OK'),
+        );
+        return Response.json({
+          ok: true,
+          provider: sent.provider,
+          messageId: sent.messageId ?? null,
+          from: status.from,
+        });
+      } catch (cause) {
+        return fail(
+          cause instanceof Error
+            ? cause.message
+            : 'Le serveur de messagerie a refusé l’envoi de test.',
+          502,
+        );
+      }
     } else return fail('Action inconnue');
     return Response.json({ ok: true, id: result?.id });
   }

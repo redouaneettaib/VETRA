@@ -1,5 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { email, mailConfigured } from '../src/lib/mail';
+import {
+  buildOtpEmailHtml,
+  email,
+  mailConfigured,
+  mailStatus,
+} from '../src/lib/mail';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -15,7 +20,14 @@ it('envoie un OTP et transmet le PDF en base64 via HTTPS', async () => {
   );
   vi.stubGlobal('fetch', fetchMock);
   expect(mailConfigured()).toBe(true);
-  await email('user@example.invalid', 'OTP', 'Votre code');
+  const res = await email(
+    'user@example.invalid',
+    'OTP',
+    'Votre code',
+    undefined,
+    buildOtpEmailHtml('RESET', '123456'),
+  );
+  expect(res).toEqual({ provider: 'resend', messageId: 'test' });
   await email('user@example.invalid', 'Rapport', 'Ci-joint', {
     filename: 'rapport.pdf',
     content: Buffer.from('%PDF'),
@@ -29,6 +41,9 @@ it('envoie un OTP et transmet le PDF en base64 via HTTPS', async () => {
     to: ['user@example.invalid'],
     text: 'Votre code',
   });
+  expect(JSON.parse(String(fetchMock.mock.calls[0][1].body)).html).toContain(
+    '123456',
+  );
   expect(
     JSON.parse(String(fetchMock.mock.calls[1][1].body)).attachments,
   ).toEqual([
@@ -39,16 +54,33 @@ it('envoie un OTP et transmet le PDF en base64 via HTTPS', async () => {
   ]);
 });
 
-it('détecte la configuration incomplète et les refus du fournisseur', async () => {
+it('détecte la configuration incomplète et les refus détaillés du fournisseur', async () => {
   vi.stubEnv('RESEND_API_KEY', 'test-key');
   vi.stubEnv('RESEND_FROM', '');
+  vi.stubEnv('SMTP_HOST', '');
+  vi.stubEnv('SMTP_FROM', '');
   expect(mailConfigured()).toBe(false);
-  vi.stubEnv('RESEND_FROM', 'test@example.invalid');
+  expect(mailStatus()).toMatchObject({
+    configured: false,
+    provider: 'none',
+    missing: ['RESEND_FROM'],
+  });
+  vi.stubEnv('RESEND_FROM', 'VETRA <onboarding@resend.dev>');
+  expect(mailStatus()).toMatchObject({
+    configured: true,
+    provider: 'resend',
+    sandboxSender: true,
+  });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => new Response(null, { status: 403 })),
+    vi.fn(async () =>
+      Response.json(
+        { message: 'You can only send testing emails to your own email address.' },
+        { status: 403 },
+      ),
+    ),
   );
   await expect(
     email('user@example.invalid', 'OTP', 'Votre code'),
-  ).rejects.toThrow('HTTP 403');
+  ).rejects.toThrow(/HTTP 403.*testing emails/);
 });
