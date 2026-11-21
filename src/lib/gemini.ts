@@ -19,8 +19,8 @@ let cachedDevClient: GoogleGenAI | null = null;
 let cachedVertexClient: GoogleGenAI | null = null;
 let cachedKey = '';
 
-// Remember working / 404 targets per API key so we never waste latency or quota on unavailable models
 let preferredTargetKey = '';
+let detectedMode: 'dev' | 'vertex' | null = null;
 const unavailableTargets = new Set<string>();
 const responseCache = new Map<string, { expiresAt: number; value: unknown }>();
 
@@ -55,6 +55,7 @@ function getClients(): {
     });
     cachedKey = apiKey;
     preferredTargetKey = '';
+    detectedMode = null;
     unavailableTargets.clear();
   }
   return {
@@ -107,16 +108,49 @@ function extractErrorDetails(error: unknown): {
   return { httpStatus, code, message: rawMessage };
 }
 
-function isModelUnavailable(error: unknown): boolean {
-  const { httpStatus, code, message } = extractErrorDetails(error);
+function sanitizeMessage(message: string): string {
+  return message
+    .replace(/(?:AIza|AQ\.)[A-Za-z0-9._-]+/g, '[CLÉ_MASQUÉE]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 220);
+}
+
+function isKeyDefinitivelyBlocked(error: unknown): boolean {
+  const { code, message } = extractErrorDetails(error);
   const upper = `${code} ${message}`.toUpperCase();
   return (
+    upper.includes('LEAKED') ||
+    upper.includes('REVOKED') ||
+    upper.includes('SUSPENDED') ||
+    upper.includes('EXPIRED')
+  );
+}
+
+function isModelUnavailable(error: unknown, model: string): boolean {
+  if (isKeyDefinitivelyBlocked(error)) return false;
+  const { httpStatus, code, message } = extractErrorDetails(error);
+  const upper = `${code} ${message}`.toUpperCase();
+  if (
     httpStatus === 404 ||
     upper.includes('NOT_FOUND') ||
     upper.includes('IS NOT FOUND') ||
-    upper.includes('NOT SUPPORTED FOR GENERATECONTENT') ||
-    (httpStatus === 403 &&
-      (upper.includes('MODEL') || upper.includes('PUBLISHER')))
+    upper.includes('NOT SUPPORTED FOR GENERATECONTENT')
+  ) {
+    return true;
+  }
+  // A 403 on a non-GA/preview model (e.g. gemini-4-hydrogen) on an external key
+  // should try standard GA models (gemini-2.5-flash) rather than failing auth immediately
+  if (
+    httpStatus === 403 &&
+    model !== 'gemini-2.5-flash' &&
+    model !== 'gemini-2.5-flash-lite'
+  ) {
+    return true;
+  }
+  return (
+    httpStatus === 403 &&
+    (upper.includes('MODEL') || upper.includes('PUBLISHER'))
   );
 }
 
@@ -165,48 +199,41 @@ function isTransientNetwork(error: unknown): boolean {
   );
 }
 
-function classifyError(error: unknown): AiServiceError {
+function classifyError(error: unknown, targetLabel = ''): AiServiceError {
   if (error instanceof AiServiceError) return error;
   const { httpStatus, code, message } = extractErrorDetails(error);
-  const safeMsg = message
-    .replace(/(?:AIza|AQ\.)[A-Za-z0-9._-]+/g, '[REDACTED]')
-    .slice(0, 180);
+  const safeMsg = sanitizeMessage(message);
   console.error('VETRA Gemini API error:', {
+    target: targetLabel,
     httpStatus,
     code,
     message: safeMsg,
   });
-  const detail = [httpStatus ? `HTTP ${httpStatus}` : '', code]
+  const detail = [targetLabel, httpStatus ? `HTTP ${httpStatus}` : '', code]
     .filter(Boolean)
     .join(' · ');
 
   if (isQuotaError(error)) {
     return new AiServiceError(
-      'Limite de requêtes temporaire atteinte sur votre clé Google AI Studio (plan gratuit). Patientez environ 30 à 60 secondes puis réessayez, ou activez la facturation sur votre projet Google AI Studio.',
+      `Limite de quota atteinte sur Google (${detail}${safeMsg ? ` — ${safeMsg}` : ''}). Patientez 30 à 60 secondes puis réessayez.`,
       429,
     );
   }
   if (isOverloaded(error)) {
     return new AiServiceError(
-      'Les serveurs Google Gemini connaissent un pic de charge temporaire (HTTP 503). Réessayez dans quelques secondes.',
+      `Serveurs Google temporairement surchargés (${detail}). Réessayez dans quelques secondes.`,
       503,
     );
   }
   if (isAuthError(error)) {
     return new AiServiceError(
-      `Clé GEMINI_API_KEY refusée par Google${detail ? ` (${detail})` : ''}. Vérifiez la clé enregistrée dans Railway → Variables.`,
+      `Accès refusé par Google (${detail}${safeMsg ? ` — ${safeMsg}` : ''}).`,
       403,
-    );
-  }
-  if (isModelUnavailable(error)) {
-    return new AiServiceError(
-      `Aucun modèle Gemini compatible n’est accessible avec cette clé API${detail ? ` (${detail})` : ''}.`,
-      502,
     );
   }
   return new AiServiceError(
     detail
-      ? `Le service d’analyse IA a renvoyé une erreur (${detail}${safeMsg ? ` : ${safeMsg}` : ''}).`
+      ? `Erreur du service IA (${detail}${safeMsg ? ` — ${safeMsg}` : ''}).`
       : 'Le service d’analyse IA est temporairement indisponible. Réessayez dans un instant.',
     502,
   );
@@ -240,14 +267,20 @@ async function runWithModelFallback<T>(
     ...FALLBACK_MODELS.filter((m) => m !== VETRA_AI_MODEL),
   ];
 
-  let attempts: Attempt[] = orderedModels.map((model) => ({
-    key: `dev:${model}`,
-    client: devClient,
-    model,
-    mode: 'dev',
-  }));
+  let attempts: Attempt[] = [];
 
-  if (apiKey.startsWith('AQ.')) {
+  if (detectedMode !== 'vertex') {
+    attempts.push(
+      ...orderedModels.map((model) => ({
+        key: `dev:${model}`,
+        client: devClient,
+        model,
+        mode: 'dev' as const,
+      })),
+    );
+  }
+
+  if (apiKey.startsWith('AQ.') && detectedMode !== 'dev') {
     attempts.push(
       {
         key: 'vertex:gemini-2.5-flash',
@@ -264,10 +297,8 @@ async function runWithModelFallback<T>(
     );
   }
 
-  // Skip models previously confirmed 404 for this API key
   attempts = attempts.filter((a) => !unavailableTargets.has(a.key));
 
-  // Try the last known working (mode, model) first to avoid repeated probes
   if (preferredTargetKey) {
     const prefIdx = attempts.findIndex((a) => a.key === preferredTargetKey);
     if (prefIdx > 0) {
@@ -276,16 +307,24 @@ async function runWithModelFallback<T>(
     }
   }
 
-  let bestError: unknown = null;
-  let lastError: unknown = null;
+  let bestFailure: { error: unknown; key: string } | null = null;
+  let lastFailure: { error: unknown; key: string } | null = null;
+  let authenticatedModeInRun: 'dev' | 'vertex' | null = detectedMode;
 
   for (let idx = 0; idx < attempts.length; idx++) {
     const attempt = attempts[idx];
+
+    // Never cross over to the opposite endpoint once one endpoint has authenticated this key
+    if (authenticatedModeInRun && attempt.mode !== authenticatedModeInRun) {
+      continue;
+    }
+
     const maxTries = 2;
     for (let retry = 1; retry <= maxTries; retry++) {
       try {
         const result = await runner(attempt.client, attempt.model);
         preferredTargetKey = attempt.key;
+        detectedMode = attempt.mode;
         if (cacheKey) {
           if (responseCache.size > 40) responseCache.clear();
           responseCache.set(cacheKey, {
@@ -295,39 +334,53 @@ async function runWithModelFallback<T>(
         }
         return result;
       } catch (error) {
-        lastError = error;
+        lastFailure = { error, key: attempt.key };
 
-        // Track more informative errors (429 / 503) over secondary 404s
-        if (
-          !bestError ||
-          isQuotaError(error) ||
-          (isOverloaded(error) && !isQuotaError(bestError))
-        ) {
-          bestError = error;
+        // 0. Definitively blocked key (leaked / revoked / expired) -> stop immediately with exact Google reason
+        if (isKeyDefinitivelyBlocked(error)) {
+          throw classifyError(error, attempt.key);
         }
 
-        if (isModelUnavailable(error)) {
+        // 1. Model unavailable (404, or 403 on non-GA model like gemini-4-hydrogen) -> skip to next model in same mode
+        if (isModelUnavailable(error, attempt.model)) {
           unavailableTargets.add(attempt.key);
           console.warn(
-            `VETRA Gemini (${attempt.key}) indisponible (404), mis en cache comme ignoré.`,
+            `VETRA Gemini (${attempt.key}) non disponible, essai du modèle suivant.`,
           );
           break;
         }
 
-        // On auth rejection with AQ. key on dev endpoint, skip straight to vertex endpoints
+        // 2. If GA model on dev endpoint fails auth for an AQ. key -> switch cleanly to vertex endpoints
         if (
           attempt.mode === 'dev' &&
+          !authenticatedModeInRun &&
           isAuthError(error) &&
           apiKey.startsWith('AQ.')
         ) {
           const vertexIdx = attempts.findIndex((a) => a.mode === 'vertex');
           if (vertexIdx > idx) {
+            bestFailure = { error, key: attempt.key };
             idx = vertexIdx - 1;
             break;
           }
         }
 
-        // On 429 quota hit: do NOT retry the same model immediately; try next model with separate quota bucket
+        // Quota (429) or Overload (503) proves this endpoint authenticated the key
+        if (isQuotaError(error) || isOverloaded(error)) {
+          authenticatedModeInRun = attempt.mode;
+          detectedMode = attempt.mode;
+        }
+
+        // Track meaningful failures (quota / overload take priority over secondary auth errors)
+        if (
+          !bestFailure ||
+          isQuotaError(error) ||
+          (isOverloaded(error) && !isQuotaError(bestFailure.error))
+        ) {
+          bestFailure = { error, key: attempt.key };
+        }
+
+        // 3. Quota hit (429) -> try next model in same endpoint with separate quota bucket
         if (isQuotaError(error)) {
           console.warn(
             `VETRA Gemini (${attempt.key}) quota atteint (429), essai du modèle suivant.`,
@@ -335,7 +388,7 @@ async function runWithModelFallback<T>(
           break;
         }
 
-        // On 503 overload or transient network error: 1 short retry, then fail over to next model
+        // 4. Overload (503) or transient network -> 1 short retry, then next model
         if (isOverloaded(error) || isTransientNetwork(error)) {
           if (retry < maxTries) {
             await new Promise((resolve) => setTimeout(resolve, 650));
@@ -347,12 +400,15 @@ async function runWithModelFallback<T>(
           break;
         }
 
-        throw classifyError(error);
+        // Preserve earlier quota/overload error if a later attempt failed differently
+        const chosen = bestFailure ?? lastFailure;
+        throw classifyError(chosen?.error, chosen?.key ?? attempt.key);
       }
     }
   }
 
-  throw classifyError(bestError ?? lastError);
+  const chosen = bestFailure ?? lastFailure;
+  throw classifyError(chosen?.error, chosen?.key ?? '');
 }
 
 export async function generateStructuredJson<T>(options: {
