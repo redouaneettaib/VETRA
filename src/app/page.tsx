@@ -20,6 +20,10 @@ import {
   Users,
   KeyRound,
   Mail,
+  Sparkles,
+  ShieldAlert,
+  MessageSquareText,
+  Radar,
 } from 'lucide-react';
 
 import CanevasTable from './CanevasTable';
@@ -33,6 +37,7 @@ import AdminPasswordReset from './AdminPasswordReset';
 import AdminResetRequests, {
   type PendingResetRequest,
 } from './AdminResetRequests';
+import CentralAiHub, { type CentralAiSection } from './CentralAiHub';
 import RubricIcon from './RubricIcon';
 import RegionalMap from './RegionalMap';
 import ReportNotifications from './ReportNotifications';
@@ -50,9 +55,8 @@ function Brand() {
         />
       </span>
       <img
-        src="/vetra-bouclier.jpg"
-        alt="VETRA — Veille, Traçabilité et Reporting des Activités des Services Vétérinaires"
-        className="vetra-brand-logo"
+        src="/VETRA_officiel.jpg"
+        alt="VETRA"
         referrerPolicy="no-referrer"
       />
     </div>
@@ -60,10 +64,11 @@ function Brand() {
 }
 
 type Any = Record<string, any>;
-type Tab = 'dashboard' | 'saisie' | 'rapports' | 'reporting' | 'admin';
+type Tab = 'dashboard' | 'saisie' | 'rapports' | 'reporting' | 'veille' | 'admin';
 async function api(path: string, data?: Any) {
   const r = await fetch('/api/' + path, {
     method: data ? 'POST' : 'GET',
+    cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
     body: data ? JSON.stringify(data) : undefined,
   });
@@ -82,6 +87,7 @@ export default function Home() {
     [canevas, setCanevas] = useState<Any>({ rubrics: [], rows: [] }),
     [reports, setReports] = useState<Any[]>([]),
     [tab, setTab] = useState<Tab>('dashboard'),
+    [aiSection, setAiSection] = useState<CentralAiSection>('summary'),
     [month, setMonth] = useState(new Date().getMonth() + 1),
     [year, setYear] = useState(new Date().getFullYear()),
     [service, setService] = useState(''),
@@ -141,6 +147,44 @@ export default function Home() {
       active = false;
     };
   }, [year, month]);
+  const isAdminUser = me?.user.role === 'ADMIN_NATIONAL';
+  useEffect(() => {
+    if (!isAdminUser) return;
+    let active = true;
+    const refreshResetRequests = () => {
+      api('admin/reset-requests')
+        .then((list) => {
+          if (active && Array.isArray(list)) setResetRequests(list);
+        })
+        .catch(() => {});
+    };
+    refreshResetRequests();
+    const timer = window.setInterval(refreshResetRequests, 15_000);
+    const onFocus = () => refreshResetRequests();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refreshResetRequests();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [isAdminUser, tab]);
+  const openResetRequests = (userId?: string) => {
+    setTab('admin');
+    setAdminSection('comptes');
+    setEditingUserId('');
+    if (userId) setResettingUserId(userId);
+    setTimeout(() => {
+      const targetId = userId
+        ? 'admin-reset-password-panel'
+        : 'admin-reset-requests-panel';
+      document.getElementById(targetId)?.scrollIntoView({ block: 'nearest' });
+    }, 50);
+  };
   const selectedService = org.services.find((s: Any) => s.id === service);
   const current = reports.find(
     (r) => r.serviceId === service && r.year === year && r.month === month,
@@ -367,6 +411,7 @@ export default function Home() {
     saisie: 'Saisie mensuelle',
     rapports: 'Rapports et validation',
     reporting: 'Reporting officiel',
+    veille: 'Veille & Analyse IA',
     admin: 'Administration',
   };
   const nav: [Tab, React.ReactNode][] = [
@@ -374,6 +419,9 @@ export default function Home() {
     ['saisie', <ClipboardList size={18} />],
     ['rapports', <ShieldCheck size={18} />],
     ['reporting', <BarChart3 size={18} />],
+    ...(me.user.role === 'DIRECTION_CENTRALE'
+      ? ([['veille', <Sparkles size={18} />]] as [Tab, React.ReactNode][])
+      : []),
     ...(me.user.role === 'ADMIN_NATIONAL'
       ? ([['admin', <Settings size={18} />]] as [Tab, React.ReactNode][])
       : []),
@@ -396,12 +444,22 @@ export default function Home() {
                 setTab(key);
               }}
               className={
-                'flex items-center gap-2 px-3 py-3 rounded-lg text-sm w-full whitespace-nowrap text-left ' +
+                'flex items-center justify-between gap-2 px-3 py-3 rounded-lg text-sm w-full whitespace-nowrap text-left ' +
                 (tab === key ? 'bg-white/20' : 'hover:bg-white/10')
               }
             >
-              {icon}
-              {names[key]}
+              <span className="flex items-center gap-2">
+                {icon}
+                {names[key]}
+              </span>
+              {key === 'admin' && resetRequests.length > 0 && (
+                <span
+                  aria-label={`${resetRequests.length} demande${resetRequests.length === 1 ? '' : 's'} de réinitialisation en attente`}
+                  className="rounded-full bg-amber-400 text-navy text-xs font-bold px-2 py-0.5 tabular-nums"
+                >
+                  {resetRequests.length}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -479,13 +537,16 @@ export default function Home() {
                 />
               </div>
             )}
-            {periodReady && (
+            {(periodReady || isAdminUser) && (
               <ReportNotifications
                 statusesToReview={unvalidatedReports.map((report) =>
                   String(report.status),
                 )}
                 month={month}
                 year={year}
+                isAdmin={isAdminUser}
+                resetRequests={resetRequests}
+                onOpenResetRequests={openResetRequests}
                 onOpen={() => {
                   setUnvalidatedOnly(true);
                   setTab('rapports');
@@ -613,6 +674,83 @@ export default function Home() {
                 </button>
               ))}
             </div>
+            {me.user.role === 'DIRECTION_CENTRALE' && (
+              <div className="panel space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="font-bold text-navy flex items-center gap-2">
+                      <Sparkles
+                        size={17}
+                        className="text-teal"
+                        aria-hidden="true"
+                      />
+                      Veille sanitaire &amp; Analyse IA — Direction centrale
+                    </h2>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Accès rapide aux outils d’aide à la décision sur le
+                      périmètre national ({months[month - 1]} {year}).
+                    </p>
+                  </div>
+                </div>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  {(
+                    [
+                      {
+                        id: 'summary',
+                        label: 'Synthèse exécutive',
+                        hint: 'Note nationale consolidée',
+                        Icon: FileText,
+                      },
+                      {
+                        id: 'anomalies',
+                        label: 'Contrôle anomalies',
+                        hint: 'Audit qualité des rapports',
+                        Icon: ShieldAlert,
+                      },
+                      {
+                        id: 'qa',
+                        label: 'Assistant analytique',
+                        hint: 'Questions en français / arabe',
+                        Icon: MessageSquareText,
+                      },
+                      {
+                        id: 'signals',
+                        label: 'Signaux faibles',
+                        hint: 'Veille sanitaire sur 6 mois',
+                        Icon: Radar,
+                      },
+                    ] as Array<{
+                      id: CentralAiSection;
+                      label: string;
+                      hint: string;
+                      Icon: typeof FileText;
+                    }>
+                  ).map(({ id, label, hint, Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className="text-left rounded-xl border border-slate-200 hover:border-teal hover:bg-slate-50 px-3.5 py-3 transition-colors flex items-start gap-2.5"
+                      onClick={() => {
+                        setAiSection(id);
+                        setTab('veille');
+                      }}
+                    >
+                      <span className="rounded-lg bg-emerald-50 text-teal p-2 shrink-0">
+                        <Icon size={17} aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0">
+                        <strong className="block text-sm text-navy">
+                          {label}
+                        </strong>
+                        <span className="block text-xs text-slate-600">
+                          {hint}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <RegionalMap
               regions={org.regions}
               services={org.services.filter(
@@ -1072,6 +1210,7 @@ export default function Home() {
           <Reporting
             initialYear={year}
             initialMonth={month}
+            isCentralDirector={me.user.role === 'DIRECTION_CENTRALE'}
             services={org.services
               .map((item: Any) => ({
                 id: item.id,
@@ -1081,6 +1220,18 @@ export default function Home() {
                 ),
               }))
               .filter((item: Any) => item.region)}
+          />
+        )}
+        {tab === 'veille' && me.user.role === 'DIRECTION_CENTRALE' && (
+          <CentralAiHub
+            key={aiSection}
+            year={year}
+            month={month}
+            initialSection={aiSection}
+            onOpenReport={(serviceId) => {
+              setService(serviceId);
+              setTab('saisie');
+            }}
           />
         )}
         {tab === 'admin' && me.user.role === 'ADMIN_NATIONAL' && (
@@ -1114,6 +1265,44 @@ export default function Home() {
                 </button>
               ))}
             </nav>
+
+            {resetRequests.length > 0 && adminSection !== 'comptes' && (
+              <div
+                role="status"
+                className="panel border-amber-300 bg-amber-50/70 flex flex-wrap items-center justify-between gap-3 py-3.5"
+              >
+                <div className="flex items-start gap-2.5">
+                  <KeyRound
+                    size={18}
+                    className="text-amber-700 shrink-0 mt-0.5"
+                    aria-hidden="true"
+                  />
+                  <div>
+                    <p className="font-bold text-sm text-navy">
+                      {resetRequests.length} demande
+                      {resetRequests.length === 1 ? '' : 's'} de
+                      réinitialisation de mot de passe en attente
+                    </p>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      {resetRequests
+                        .slice(0, 3)
+                        .map((r) => `${r.firstName} ${r.name} (${r.email})`)
+                        .join(' · ')}
+                      {resetRequests.length > 3
+                        ? ` · +${resetRequests.length - 3} autre(s)`
+                        : ''}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn green whitespace-nowrap shrink-0"
+                  onClick={() => openResetRequests()}
+                >
+                  Traiter maintenant
+                </button>
+              </div>
+            )}
 
             {adminSection === 'organisation' && (
               <div className="panel">
@@ -1214,6 +1403,48 @@ export default function Home() {
                   </button>
                 </form>
               </div>
+            )}
+            {adminSection === 'comptes' && (
+              <AdminResetRequests
+                requests={resetRequests}
+                busy={busy}
+                onSelectUser={(userId) => {
+                  setEditingUserId('');
+                  setResettingUserId(userId);
+                  setTimeout(() => {
+                    document
+                      .getElementById('admin-reset-password-panel')
+                      ?.scrollIntoView({ block: 'nearest' });
+                  }, 0);
+                }}
+                onDismiss={async (userId) => {
+                  setBusy(true);
+                  try {
+                    await api('admin', {
+                      action: 'dismissResetRequest',
+                      id: userId,
+                    });
+                    await reload();
+                    tell('Demande clôturée');
+                  } catch (e: any) {
+                    tell(e.message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              />
+            )}
+            {adminSection === 'comptes' && resettingUser && (
+              <AdminPasswordReset
+                user={resettingUser}
+                api={api}
+                onResolved={reload}
+                onDone={(msg) => {
+                  setResettingUserId('');
+                  tell(msg);
+                }}
+                onCancel={() => setResettingUserId('')}
+              />
             )}
             {adminSection === 'comptes' && (
               <div className="panel">
@@ -1361,48 +1592,6 @@ export default function Home() {
                   )}
                 </form>
               </div>
-            )}
-            {adminSection === 'comptes' && (
-              <AdminResetRequests
-                requests={resetRequests}
-                busy={busy}
-                onSelectUser={(userId) => {
-                  setEditingUserId('');
-                  setResettingUserId(userId);
-                  setTimeout(() => {
-                    document
-                      .getElementById('admin-reset-password-panel')
-                      ?.scrollIntoView({ block: 'nearest' });
-                  }, 0);
-                }}
-                onDismiss={async (userId) => {
-                  setBusy(true);
-                  try {
-                    await api('admin', {
-                      action: 'dismissResetRequest',
-                      id: userId,
-                    });
-                    await reload();
-                    tell('Demande clôturée');
-                  } catch (e: any) {
-                    tell(e.message);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              />
-            )}
-            {adminSection === 'comptes' && resettingUser && (
-              <AdminPasswordReset
-                user={resettingUser}
-                api={api}
-                onResolved={reload}
-                onDone={(msg) => {
-                  setResettingUserId('');
-                  tell(msg);
-                }}
-                onCancel={() => setResettingUserId('')}
-              />
             )}
             {adminSection === 'comptes' && (
               <div className="panel">

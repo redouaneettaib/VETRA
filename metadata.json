@@ -1,0 +1,8 @@
+{
+  "name": "VETRA | ONSSA – DPA",
+  "description": "Plateforme nationale de veille, traçabilité et reporting des activités des services vétérinaires (ONSSA – DPA)",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

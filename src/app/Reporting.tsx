@@ -4,8 +4,12 @@ import { useEffect, useId, useState } from 'react';
 import {
   Activity,
   CalendarDays,
+  Check,
+  Copy,
   FileSpreadsheet,
   FileText,
+  Loader2,
+  Sparkles,
 } from 'lucide-react';
 import {
   format,
@@ -210,10 +214,12 @@ export default function Reporting({
   services,
   initialYear,
   initialMonth,
+  isCentralDirector = false,
 }: {
   services: Service[];
   initialYear: number;
   initialMonth: number;
+  isCentralDirector?: boolean;
 }) {
   const [filters, setFilters] = useState<Filters>({
     year: initialYear,
@@ -234,6 +240,18 @@ export default function Reporting({
     analysis: Analysis;
   } | null>(null);
   const [metricSearch, setMetricSearch] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiCopied, setAiCopied] = useState(false);
+  const [aiSummary, setAiSummary] = useState<{
+    key: string;
+    titre: string;
+    synthese: string;
+    faitsMarquants: string[];
+    pointsVigilance: string[];
+    recommandations: string[];
+    periodLabel: string;
+  } | null>(null);
   const update = (changes: Partial<Filters>) =>
     setFilters((current) => ({ ...current, ...changes }));
   const catalog =
@@ -514,6 +532,162 @@ export default function Reporting({
       {analysis && (
         <>
           <ReportingOverview analysis={analysis} />
+          {isCentralDirector && (
+            <article className="panel space-y-3 border-teal/30">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-navy flex items-center gap-2">
+                    <Sparkles
+                      size={17}
+                      className="text-teal"
+                      aria-hidden="true"
+                    />
+                    Synthèse exécutive IA (Direction centrale)
+                  </h3>
+                  <p className="text-xs text-slate-600">
+                    Génère une note institutionnelle correspondant exactement
+                    aux filtres actifs ci-dessus ({analysis.period}).
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {aiSummary?.key === key && (
+                    <button
+                      type="button"
+                      className="btn alt inline-flex items-center gap-1.5 text-sm"
+                      onClick={async () => {
+                        const text = [
+                          aiSummary.titre,
+                          `Période : ${aiSummary.periodLabel}`,
+                          '',
+                          aiSummary.synthese,
+                          '',
+                          'FAITS MARQUANTS :',
+                          ...aiSummary.faitsMarquants.map((f) => `- ${f}`),
+                          '',
+                          'POINTS DE VIGILANCE :',
+                          ...aiSummary.pointsVigilance.map((p) => `- ${p}`),
+                          '',
+                          'RECOMMANDATIONS :',
+                          ...aiSummary.recommandations.map((r) => `- ${r}`),
+                        ].join('\n');
+                        try {
+                          await navigator.clipboard.writeText(text);
+                          setAiCopied(true);
+                          setTimeout(() => setAiCopied(false), 2500);
+                        } catch {}
+                      }}
+                    >
+                      {aiCopied ? (
+                        <>
+                          <Check size={15} className="text-teal" />
+                          Copié
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={15} />
+                          Copier la note
+                        </>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn green inline-flex items-center gap-2 text-sm"
+                    disabled={aiBusy}
+                    onClick={async () => {
+                      setAiBusy(true);
+                      setAiError('');
+                      try {
+                        const res = await fetch('/api/ai/central', {
+                          method: 'POST',
+                          cache: 'no-store',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'summary',
+                            year: filters.year,
+                            month: filters.month,
+                            mode: filters.mode,
+                            group: filters.group,
+                            ids: filters.ids,
+                            rubrics: filters.rubrics,
+                          }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok)
+                          throw new Error(
+                            data.error || 'Erreur lors de la synthèse IA.',
+                          );
+                        setAiSummary({ key, ...data });
+                      } catch (err) {
+                        setAiError(
+                          err instanceof Error
+                            ? err.message
+                            : 'Erreur lors de la synthèse IA.',
+                        );
+                      } finally {
+                        setAiBusy(false);
+                      }
+                    }}
+                  >
+                    {aiBusy ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={15} />
+                    )}
+                    {aiBusy ? 'Rédaction…' : 'Générer la note'}
+                  </button>
+                </div>
+              </div>
+              {aiError && (
+                <p
+                  role="alert"
+                  className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-lg px-3 py-2"
+                >
+                  {aiError}
+                </p>
+              )}
+              {aiSummary?.key === key && (
+                <div className="space-y-3 border-t border-slate-100 pt-3">
+                  <h4 className="font-bold text-navy">{aiSummary.titre}</h4>
+                  <p className="text-sm text-slate-800 leading-relaxed">
+                    {aiSummary.synthese}
+                  </p>
+                  <div className="grid md:grid-cols-3 gap-3 text-sm">
+                    <div className="rounded-lg border border-slate-200 p-3 space-y-1.5">
+                      <strong className="text-navy text-xs uppercase">
+                        Faits marquants
+                      </strong>
+                      <ul className="list-disc pl-4 space-y-1 text-slate-700">
+                        {aiSummary.faitsMarquants.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-3 space-y-1.5">
+                      <strong className="text-amber-900 text-xs uppercase">
+                        Points de vigilance
+                      </strong>
+                      <ul className="list-disc pl-4 space-y-1 text-slate-700">
+                        {aiSummary.pointsVigilance.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-1.5">
+                      <strong className="text-emerald-900 text-xs uppercase">
+                        Recommandations
+                      </strong>
+                      <ul className="list-disc pl-4 space-y-1 text-slate-700">
+                        {aiSummary.recommandations.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </article>
+          )}
           <article className="panel space-y-4">
             <div className="flex gap-2 items-center">
               <Activity size={19} />

@@ -209,20 +209,25 @@ async function handle(
     const user = await findUserByEmail(parsedEmail.data);
     const hasMail = mailConfigured();
     if (user && user.active) {
-      const recentRequest = await db.event.findFirst({
+      const reason = note || 'Demande depuis l’écran de connexion';
+      const latestResetEvent = await db.event.findFirst({
         where: {
           userId: user.id,
-          action: 'PASSWORD_RESET_REQUEST',
-          createdAt: { gt: new Date(Date.now() - 5 * 60_000) },
+          action: { in: ['PASSWORD_RESET_REQUEST', 'PASSWORD_RESET_RESOLVED'] },
         },
-        select: { id: true },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { id: true, action: true, reason: true, createdAt: true },
       });
-      if (!recentRequest) {
+      const isDuplicateActiveRequest =
+        latestResetEvent?.action === 'PASSWORD_RESET_REQUEST' &&
+        latestResetEvent.createdAt.getTime() > Date.now() - 60_000 &&
+        (!note || latestResetEvent.reason === reason);
+      if (!isDuplicateActiveRequest) {
         await db.event.create({
           data: {
             userId: user.id,
             action: 'PASSWORD_RESET_REQUEST',
-            reason: note || 'Demande depuis l’écran de connexion',
+            reason,
           },
         });
       }

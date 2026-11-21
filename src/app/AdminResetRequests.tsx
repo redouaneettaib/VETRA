@@ -30,7 +30,10 @@ export default function AdminResetRequests({
   if (!requests.length) return null;
 
   return (
-    <div className="panel space-y-3 border-amber-200 bg-amber-50/40">
+    <div
+      id="admin-reset-requests-panel"
+      className="panel space-y-3 border-amber-200 bg-amber-50/40"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="font-bold text-navy flex items-center gap-2">

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="vetraBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#153c5d" />
+      <stop offset="100%" stop-color="#0d263d" />
+    </linearGradient>
+    <linearGradient id="vetraAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1ca086" />
+      <stop offset="100%" stop-color="#0f7662" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#vetraBg)" />
+  <path
+    d="M32 9L51 16.5V31.5C51 43.2 42.9 51.6 32 55C21.1 51.6 13 43.2 13 31.5V16.5L32 9Z"
+    fill="none"
+    stroke="url(#vetraAccent)"
+    stroke-width="3.2"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M21.5 23.5L30.8 43.5H33.4L44.5 20.5"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="5.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M36.5 34.5L45.5 20"
+    fill="none"
+    stroke="#34d399"
+    stroke-width="3.6"
+    stroke-linecap="round"
+  />
+</svg>
