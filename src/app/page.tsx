@@ -23,6 +23,9 @@ import {
   ShieldAlert,
   MessageSquareText,
   Radar,
+  MapPin,
+  ChevronDown,
+  Clock3,
 } from 'lucide-react';
 
 import CanevasTable from './CanevasTable';
@@ -806,42 +809,118 @@ export default function Home() {
         )}
         {tab === 'saisie' && periodReady && (
           <div className="panel space-y-4">
-            <div className="flex flex-wrap gap-3 items-center">
+            <div
+              className="vetra-scope-bar"
+              role="region"
+              aria-label="Sélection de la direction régionale et du service"
+            >
               {centralScope && (
-                <label className="grid gap-1 text-sm font-semibold">
-                  Direction régionale
-                  <select
-                    aria-label="Filtrer la saisie par direction régionale"
-                    value={saisieRegionFilter}
-                    onChange={(e) => setSaisieRegionFilter(e.target.value)}
-                  >
-                    <option value="">Toutes les directions régionales</option>
-                    {org.regions.map((r: Any) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <>
+                  <label className="vetra-scope-field">
+                    <span className="vetra-scope-icon is-region" aria-hidden="true">
+                      <MapPin size={16} />
+                    </span>
+                    <span className="vetra-scope-body">
+                      <span className="vetra-scope-label">
+                        Direction régionale
+                      </span>
+                      <span className="vetra-scope-select-wrap">
+                        <select
+                          aria-label="Filtrer la saisie par direction régionale"
+                          className="vetra-scope-select"
+                          disabled={busy}
+                          value={saisieRegionFilter}
+                          onChange={(e) => setSaisieRegionFilter(e.target.value)}
+                        >
+                          <option value="">
+                            Toutes les directions régionales
+                          </option>
+                          {org.regions.map((r: Any) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          size={15}
+                          className="vetra-scope-chevron"
+                          aria-hidden="true"
+                        />
+                      </span>
+                    </span>
+                  </label>
+                  <span className="vetra-scope-divider" aria-hidden="true" />
+                </>
               )}
-              <select
-                aria-label="Service"
-                disabled={busy}
-                value={service}
-                onChange={(e) => setService(e.target.value)}
-              >
-                {saisieServices.map((s: Any) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ·{' '}
-                    {s.kind === 'FRONTALIER' ? 'Frontalier' : 'Provincial'}
-                  </option>
-                ))}
-              </select>
-              <span className={'badge ' + (current?.status || '')}>
-                {current?.status || 'NON INTRODUIT'}
-              </span>
-              <span className="text-sm text-red-700">{current?.reason}</span>
+              <label className="vetra-scope-field is-service">
+                <span className="vetra-scope-icon is-service" aria-hidden="true">
+                  <Building2 size={16} />
+                </span>
+                <span className="vetra-scope-body">
+                  <span className="vetra-scope-label">
+                    Service vétérinaire
+                  </span>
+                  <span className="vetra-scope-select-wrap">
+                    <select
+                      aria-label="Service"
+                      className="vetra-scope-select"
+                      disabled={busy}
+                      value={service}
+                      onChange={(e) => setService(e.target.value)}
+                    >
+                      {saisieServices.map((s: Any) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ·{' '}
+                          {s.kind === 'FRONTALIER'
+                            ? 'Frontalier'
+                            : 'Provincial'}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={15}
+                      className="vetra-scope-chevron"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </span>
+              </label>
+              <span className="vetra-scope-divider" aria-hidden="true" />
+              <div className="vetra-scope-status-wrap">
+                <span className="vetra-scope-label">Statut du rapport</span>
+                <span
+                  className={
+                    'vetra-scope-status ' +
+                    (current?.status || 'NON_INTRODUIT')
+                  }
+                >
+                  {current?.status === 'VALIDE' ? (
+                    <BadgeCheck size={14} aria-hidden="true" />
+                  ) : current?.status === 'SOUMIS' ? (
+                    <Clock3 size={14} aria-hidden="true" />
+                  ) : current?.status === 'REVOQUE' ? (
+                    <RotateCcw size={14} aria-hidden="true" />
+                  ) : current?.status === 'BROUILLON' ||
+                    current?.status === 'CORRIGE' ? (
+                    <Pencil size={14} aria-hidden="true" />
+                  ) : (
+                    <CircleDashed size={14} aria-hidden="true" />
+                  )}
+                  <span>{current?.status || 'NON INTRODUIT'}</span>
+                </span>
+              </div>
             </div>
+            {current?.reason && (
+              <div
+                role="alert"
+                className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-800 flex items-center gap-2"
+              >
+                <RotateCcw size={15} className="shrink-0" aria-hidden="true" />
+                <span>
+                  <strong>Motif de révocation :</strong> {current.reason}
+                </span>
+              </div>
+            )}
             {saisieServices.length > 0 && !permittedSections.length && (
               <p>Aucune rubrique habilitée pour ce service.</p>
             )}

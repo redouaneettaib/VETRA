@@ -1157,6 +1157,156 @@ input:disabled {
   }
 }
 
+/* Barre unifiée Direction régionale · Service vétérinaire · Statut */
+.vetra-scope-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  background: #f6f9fc;
+  border: 1px solid #dce6f0;
+  border-radius: 13px;
+}
+.vetra-scope-field {
+  flex: 1 1 15rem;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 9px;
+  background: #ffffff;
+  border: 1px solid #e2eaf2;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+.vetra-scope-field.is-service {
+  flex: 1.65 1 20rem;
+}
+.vetra-scope-field:hover {
+  border-color: #b8cedf;
+}
+.vetra-scope-field:focus-within {
+  border-color: #11816d;
+  box-shadow: 0 0 0 3px #11816d1c;
+}
+.vetra-scope-icon {
+  flex: 0 0 2.15rem;
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.vetra-scope-icon.is-region {
+  background: #e7f5f1;
+  color: #11816d;
+}
+.vetra-scope-icon.is-service {
+  background: #e9f0f8;
+  color: #123451;
+}
+.vetra-scope-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+.vetra-scope-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #647b91;
+  line-height: 1.2;
+}
+.vetra-scope-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.vetra-scope-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0.08rem 1.5rem 0.08rem 0;
+  background: transparent;
+  font-size: 0.89rem;
+  font-weight: 650;
+  color: #102a43;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  outline: none;
+}
+.vetra-scope-chevron {
+  position: absolute;
+  right: 0;
+  color: #647b91;
+  pointer-events: none;
+}
+.vetra-scope-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.35rem 0.1rem;
+  background: #dce6f0;
+  flex-shrink: 0;
+}
+.vetra-scope-status-wrap {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.22rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 9px;
+  background: #ffffff;
+  border: 1px solid #e2eaf2;
+  min-width: 9.5rem;
+}
+.vetra-scope-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  font-size: 0.8rem;
+  font-weight: 750;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+  color: #475569;
+}
+.vetra-scope-status.VALIDE {
+  color: #15803d;
+}
+.vetra-scope-status.SOUMIS {
+  color: #b45309;
+}
+.vetra-scope-status.REVOQUE {
+  color: #b91c1c;
+}
+.vetra-scope-status.BROUILLON,
+.vetra-scope-status.CORRIGE {
+  color: #1d4ed8;
+}
+@media (max-width: 900px) {
+  .vetra-scope-divider {
+    display: none;
+  }
+  .vetra-scope-status-wrap {
+    flex: 1 1 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vetra-notifications.has-alerts:not([open]) .vetra-bell-icon,
   .vetra-notifications:not([open]) > summary:hover .vetra-bell-icon,
