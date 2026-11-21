@@ -6,7 +6,12 @@
  * DEMO_RESET=true. DEMO_RESET_ALL=true supprime tous les rapports marqués
  * __demo, quel que soit le service.
  */
-import { PrismaClient, Status } from '@prisma/client';
+import { Prisma, PrismaClient, Status } from '@prisma/client';
+import {
+  buildDcspDemoReportData,
+  isDcspService,
+  needsDcspDemoNormalization,
+} from '../src/lib/demo-dcsp';
 
 const db = new PrismaClient();
 const overwrite = process.env.DEMO_OVERWRITE === 'true';
@@ -31,7 +36,7 @@ function statusFor(serviceIndex: number, year: number, month: number): Status {
 async function main() {
   const services = await db.service.findMany({
     where: { name: { in: selectedServiceNames } },
-    include: { division: { include: { region: true } } },
+    include: { rights: true, division: { include: { region: true } } },
     orderBy: [{ division: { region: { name: 'asc' } } }, { name: 'asc' }],
   });
   const foundNames = new Set(services.map((service) => service.name));
@@ -68,6 +73,7 @@ async function main() {
   let updated = 0;
   let skipped = 0;
   for (const [serviceIndex, service] of services.entries()) {
+    const dcsp = isDcspService(service);
     for (const [year, lastMonth] of [
       [2025, 12],
       [2026, 10],
@@ -87,25 +93,36 @@ async function main() {
           typeof existing.data === 'object' &&
           !Array.isArray(existing.data) &&
           (existing.data as Record<string, unknown>).__demo === true;
-        if (existing && (!overwrite || !isDemo)) {
+        const fixNonCompliantDcsp =
+          dcsp && existing ? needsDcspDemoNormalization(existing.data) : false;
+        if (existing && !fixNonCompliantDcsp && (!overwrite || !isDemo)) {
           skipped++;
           continue;
         }
         const base = (serviceIndex + 1) * 100 + (year - 2025) * 25 + month * 4;
-        const data = {
-          __demo: true,
-          B9: base,
-          C9: base + 12,
-          D9: base + 4,
-          B10: base * 10,
-          C10: base * 3,
-          D10: base,
-          B11: (serviceIndex + month) % 8,
-          C11: (serviceIndex + month * 2) % 11,
-        };
+        const data: Prisma.InputJsonValue = dcsp
+          ? (buildDcspDemoReportData(
+              serviceIndex,
+              year,
+              month,
+            ) as Prisma.InputJsonValue)
+          : {
+              __demo: true,
+              B9: base,
+              C9: base + 12,
+              D9: base + 4,
+              B10: base * 10,
+              C10: base * 3,
+              D10: base,
+              B11: (serviceIndex + month) % 8,
+              C11: (serviceIndex + month * 2) % 11,
+            };
         const status = statusFor(serviceIndex, year, month);
         if (existing) {
-          await db.report.update({ where: { id: existing.id }, data: { status, data } });
+          await db.report.update({
+            where: { id: existing.id },
+            data: fixNonCompliantDcsp ? { data } : { status, data },
+          });
           updated++;
         } else {
           await db.report.create({ data: { serviceId: service.id, year, month, status, data } });
@@ -116,7 +133,7 @@ async function main() {
   }
   console.log(
     `Données de démonstration injectées : ${created} créés, ${updated} mis à jour, ${skipped} conservés/absents. ` +
-      `Périodes janvier-décembre 2025 et janvier-octobre 2026, ${services.length} services, ${regionCount} régions.`,
+      `Périodes janvier-décembre 2025 et janvier-octobre 2026, ${services.length} services, ${regionCount} régions (rubrique IV uniquement pour les services DCSP/frontaliers).`,
   );
 }
 

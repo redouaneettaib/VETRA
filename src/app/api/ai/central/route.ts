@@ -17,6 +17,7 @@ import {
   generateGroundedText,
   generateStructuredJson,
 } from '@/lib/gemini';
+import { ensureDcspDemoReportsNormalized } from '@/lib/demo-dcsp';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -67,6 +68,7 @@ const requestSchema = z.discriminatedUnion('action', [
 ]);
 
 async function loadNationalData(minYear: number, maxYear: number) {
+  await ensureDcspDemoReportsNormalized(db);
   const [rawServices, rawReports] = await Promise.all([
     db.service.findMany({
       select: {

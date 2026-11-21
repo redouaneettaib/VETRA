@@ -30,6 +30,7 @@ import {
 import { analyze, parseFilters } from '@/lib/analytics';
 import { exportAnalysis } from '@/lib/reporting-export';
 import { exportReport } from '@/lib/exports';
+import { ensureDcspDemoReportsNormalized } from '@/lib/demo-dcsp';
 export const runtime = 'nodejs';
 type Input = Record<string, any>;
 const obj = (v: unknown): Input =>
@@ -757,6 +758,7 @@ async function handle(
     return Response.json({ ok: true, id: result?.id });
   }
   if (path === 'reports' && method === 'GET') {
+    await ensureDcspDemoReportsNormalized(db);
     const scope = await allowedServices(u),
       year = Number(req.nextUrl.searchParams.get('year')),
       month = Number(req.nextUrl.searchParams.get('month'));
@@ -1056,6 +1058,7 @@ async function handle(
       (path === 'analytics' || path === 'analytics/export')) ||
     (reportEmail && path === 'analytics/email')
   ) {
+    await ensureDcspDemoReportsNormalized(db);
     const params = req.nextUrl.searchParams;
     let filters;
     try {
@@ -1141,6 +1144,7 @@ async function handle(
     return exportAnalysis(analysis, type);
   }
   if (path === 'reporting') {
+    await ensureDcspDemoReportsNormalized(db);
     const scope = await allowedServices(u),
       year = Number(req.nextUrl.searchParams.get('year')),
       month = Number(req.nextUrl.searchParams.get('month'));
@@ -1180,6 +1184,7 @@ async function handle(
     (method === 'GET' && path === 'export') ||
     (reportEmail && path === 'export/email')
   ) {
+    await ensureDcspDemoReportsNormalized(db);
     const id = req.nextUrl.searchParams.get('id');
     const report = await db.report.findUnique({
       where: { id: String(id) },
