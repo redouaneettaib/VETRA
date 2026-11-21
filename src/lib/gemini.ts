@@ -3,7 +3,11 @@ import { GoogleGenAI, ThinkingLevel, type Schema } from '@google/genai';
 export const VETRA_AI_MODEL =
   process.env.GEMINI_MODEL?.trim() || 'gemini-4-hydrogen';
 
-const FALLBACK_MODELS = ['gemini-2.5-flash'];
+const FALLBACK_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
+];
 
 export class AiServiceError extends Error {
   readonly status: number;
@@ -165,6 +169,12 @@ function classifyError(error: unknown): AiServiceError {
       502,
     );
   }
+  if (httpStatus === 503 || upper.includes('UNAVAILABLE')) {
+    return new AiServiceError(
+      'Les serveurs d’analyse IA connaissent un pic de charge temporaire (HTTP 503). Réessayez dans quelques secondes.',
+      503,
+    );
+  }
   return new AiServiceError(
     detail
       ? `Le service d’analyse IA a renvoyé une erreur (${detail}${safeMsg ? ` : ${safeMsg}` : ''}).`
@@ -183,6 +193,17 @@ function isRetryable(error: unknown): boolean {
     upper.includes('ECONNRESET') ||
     upper.includes('ETIMEDOUT') ||
     upper.includes('FETCH FAILED')
+  );
+}
+
+function isOverloaded(error: unknown): boolean {
+  const { httpStatus, code, message } = extractErrorDetails(error);
+  const upper = `${code} ${message}`.toUpperCase();
+  return (
+    httpStatus === 503 ||
+    upper.includes('UNAVAILABLE') ||
+    upper.includes('HIGH DEMAND') ||
+    upper.includes('OVERLOADED')
   );
 }
 
@@ -206,11 +227,10 @@ async function runWithModelFallback<T>(
     devModels.map((model) => ({ client: devClient, model, mode: 'dev' }));
 
   if (apiKey.startsWith('AQ.')) {
-    attempts.push({
-      client: vertexClient,
-      model: 'gemini-2.5-flash',
-      mode: 'vertex',
-    });
+    attempts.push(
+      { client: vertexClient, model: 'gemini-2.5-flash', mode: 'vertex' },
+      { client: vertexClient, model: 'gemini-2.5-flash-lite', mode: 'vertex' },
+    );
   }
 
   let lastError: unknown;
@@ -221,11 +241,11 @@ async function runWithModelFallback<T>(
         return await runner(client, model);
       } catch (error) {
         lastError = error;
-        const hasMore = idx < attempts.length - 1;
-        const nextIsVertex = hasMore && attempts[idx + 1].mode === 'vertex';
+        const nextSameMode =
+          idx + 1 < attempts.length && attempts[idx + 1].mode === mode;
 
-        // On model 404/unavailable, try next model in list
-        if (isModelUnavailable(error) && hasMore) {
+        // On model 404/unavailable, move immediately to next model in same mode
+        if (isModelUnavailable(error) && nextSameMode) {
           console.warn(
             `VETRA Gemini (${mode}/${model}) indisponible, essai suivant.`,
           );
@@ -242,9 +262,18 @@ async function runWithModelFallback<T>(
             break;
           }
         }
-        if (retry < 2 && isRetryable(error) && !nextIsVertex) {
-          await new Promise((resolve) => setTimeout(resolve, 450));
-          continue;
+        // On transient 503/network spike: retry once, then fail over to next lighter model in same mode
+        if (isRetryable(error)) {
+          if (retry < 2) {
+            await new Promise((resolve) => setTimeout(resolve, 750));
+            continue;
+          }
+          if (isOverloaded(error) && nextSameMode) {
+            console.warn(
+              `VETRA Gemini (${mode}/${model}) surchargé (503), bascule vers "${attempts[idx + 1].model}".`,
+            );
+            break;
+          }
         }
         throw classifyError(error);
       }
