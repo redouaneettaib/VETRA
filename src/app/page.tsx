@@ -41,6 +41,7 @@ import CentralAiHub, { type CentralAiSection } from './CentralAiHub';
 import RubricIcon from './RubricIcon';
 import RegionalMap from './RegionalMap';
 import ReportNotifications from './ReportNotifications';
+import PeriodRibbon from './PeriodRibbon';
 import { enabledRubrics, rubricIds } from '@/lib/forms';
 import { months } from '@/lib/analytics';
 
@@ -509,34 +510,6 @@ export default function Home() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            {tab !== 'reporting' && tab !== 'admin' && (
-              <div className="flex gap-2">
-                <select
-                  aria-label="Mois"
-                  disabled={busy}
-                  value={month}
-                  onChange={(e) => setMonth(+e.target.value)}
-                >
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <option key={i} value={i + 1}>
-                      {new Date(2026, i, 1).toLocaleString('fr-FR', {
-                        month: 'long',
-                      })}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  aria-label="Année"
-                  disabled={busy}
-                  min="1900"
-                  max="9999"
-                  className="w-24"
-                  type="number"
-                  value={year}
-                  onChange={(e) => setYear(+e.target.value)}
-                />
-              </div>
-            )}
             {(periodReady || isAdminUser) && (
               <ReportNotifications
                 statusesToReview={unvalidatedReports.map((report) =>
@@ -555,6 +528,17 @@ export default function Home() {
             )}
           </div>
         </header>
+        {tab !== 'reporting' && tab !== 'admin' && (
+          <PeriodRibbon
+            month={month}
+            year={year}
+            disabled={busy}
+            onChange={(nextMonth, nextYear) => {
+              setMonth(nextMonth);
+              setYear(nextYear);
+            }}
+          />
+        )}
         {message && (
           <div
             role="status"

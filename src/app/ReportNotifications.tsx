@@ -41,9 +41,11 @@ export default function ReportNotifications({
     ? `${totalCount} notifications (${resetCount} demande${resetCount === 1 ? '' : 's'} de mot de passe, ${reportCount} rapport${reportCount === 1 ? '' : 's'} non validé${reportCount === 1 ? '' : 's'})`
     : `${reportCount} rapports non validés pour la période`;
 
+  const hasAlerts = totalCount > 0;
+
   return (
     <details
-      className="vetra-notifications"
+      className={`vetra-notifications${hasAlerts ? ' has-alerts' : ''}`}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && event.currentTarget.open) {
           event.currentTarget.open = false;
@@ -51,9 +53,17 @@ export default function ReportNotifications({
         }
       }}
     >
-      <summary aria-label={summaryLabel}>
-        <BellRing size={21} aria-hidden="true" />
-        <span className="vetra-notification-count" aria-hidden="true">
+      <summary aria-label={summaryLabel} title={summaryLabel}>
+        <BellRing
+          size={21}
+          strokeWidth={2.1}
+          className="vetra-bell-icon"
+          aria-hidden="true"
+        />
+        <span
+          className={`vetra-notification-count${hasAlerts ? ' has-alerts' : ''}`}
+          aria-hidden="true"
+        >
           {totalCount > 99 ? '99+' : totalCount}
         </span>
       </summary>

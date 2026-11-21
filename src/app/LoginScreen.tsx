@@ -1,7 +1,14 @@
 'use client';
 
-import { useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowLeft, KeyRound, ShieldCheck } from 'lucide-react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { ArrowLeft, KeyRound, ShieldCheck, UserCheck } from 'lucide-react';
+
+type PreviewAccount = {
+  email: string;
+  label: string;
+  role: string;
+  detail: string;
+};
 
 type Phase = 'login' | 'otp' | 'request' | 'reset';
 type Submit = (
@@ -26,6 +33,51 @@ export default function LoginScreen({
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [previewInfo, setPreviewInfo] = useState<{
+    password: string;
+    accounts: PreviewAccount[];
+  } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/preview-accounts', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (
+          active &&
+          data?.preview === true &&
+          Array.isArray(data.accounts) &&
+          typeof data.password === 'string'
+        ) {
+          setPreviewInfo({ password: data.password, accounts: data.accounts });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function quickPreviewLogin(account: PreviewAccount) {
+    if (!previewInfo || busy) return;
+    setError('');
+    setEmail(account.email);
+    setPassword(previewInfo.password);
+    setBusy(true);
+    try {
+      await submit('login', {
+        email: account.email,
+        password: previewInfo.password,
+      });
+      await onLogin();
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : 'Une erreur est survenue.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   const update = (next: Phase) => {
     setPhase(next);
     setError('');
@@ -311,6 +363,34 @@ export default function LoginScreen({
             <ArrowLeft size={15} />
             Retour à la connexion
           </button>
+        )}
+        {phase === 'login' && previewInfo && previewInfo.accounts.length > 0 && (
+          <div className="mt-2 pt-4 border-t border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 flex items-center gap-1.5">
+                <UserCheck size={14} className="text-teal" />
+                Aperçu local — Accès direct par profil
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {previewInfo.accounts.map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => quickPreviewLogin(account)}
+                  className="text-left rounded-lg border border-slate-200 hover:border-teal hover:bg-emerald-50/40 px-2.5 py-2 transition-colors"
+                >
+                  <div className="text-xs font-semibold text-navy leading-tight">
+                    {account.label}
+                  </div>
+                  <div className="text-[11px] text-slate-500 leading-tight mt-0.5 truncate">
+                    {account.detail}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </section>
     </main>

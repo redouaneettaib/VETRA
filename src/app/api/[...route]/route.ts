@@ -31,6 +31,8 @@ import { analyze, parseFilters } from '@/lib/analytics';
 import { exportAnalysis } from '@/lib/reporting-export';
 import { exportReport } from '@/lib/exports';
 import { ensureDcspDemoReportsNormalized } from '@/lib/demo-dcsp';
+import { isPreviewMode } from '@/lib/preview-store';
+import { handlePreviewRoute } from '@/lib/preview-api';
 export const runtime = 'nodejs';
 type Input = Record<string, any>;
 const obj = (v: unknown): Input =>
@@ -156,6 +158,15 @@ async function handle(
   const path = parts.join('/');
   const body: Input =
     method === 'POST' ? obj(await req.json().catch(() => ({}))) : {};
+  if (isPreviewMode()) {
+    return handlePreviewRoute(req, method, path, body);
+  }
+  if (path === 'preview-accounts' && method === 'GET') {
+    return Response.json(
+      { preview: false, accounts: [] },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
+  }
   const u = await currentUser();
   if (path === 'login' && method === 'POST') {
     const user = await findUserByEmail(String(body.email || ''));

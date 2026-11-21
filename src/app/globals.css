@@ -692,7 +692,7 @@ input:disabled {
 }
 .vetra-notifications {
   position: relative;
-  z-index: 5;
+  z-index: 20;
 }
 .vetra-notifications > summary {
   position: relative;
@@ -700,36 +700,81 @@ input:disabled {
   place-items: center;
   list-style: none;
   cursor: pointer;
-  width: 2.8rem;
-  height: 2.8rem;
-  border: 1px solid #dbe4ed;
-  border-radius: 50%;
-  color: #123a50;
-  background: #fff;
-  box-shadow: 0 3px 10px #102a4310;
+  width: 2.85rem;
+  height: 2.85rem;
+  border: 1px solid #d4e0eb;
+  border-radius: 1rem;
+  color: #123451;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fafd 100%);
+  box-shadow: 0 4px 12px #102a4312;
+  transition:
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
 }
 .vetra-notifications > summary::-webkit-details-marker {
   display: none;
 }
+.vetra-notifications.has-alerts > summary {
+  border-color: #c5d9e2;
+  color: #102a43;
+}
 .vetra-notifications[open] > summary,
 .vetra-notifications > summary:hover {
   background: #eaf5f2;
-  border-color: #a2c4bb;
+  border-color: #11816d;
+  color: #0e6959;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px #11816d1c;
+}
+.vetra-bell-icon {
+  transform-origin: 50% 18%;
+  will-change: transform;
+}
+.vetra-notifications.has-alerts:not([open]) .vetra-bell-icon {
+  animation: vetra-bell-vibrate 3.4s cubic-bezier(0.36, 0.07, 0.19, 0.97)
+    infinite;
+}
+.vetra-notifications:not([open]) > summary:hover .vetra-bell-icon {
+  animation: vetra-bell-hover-vibrate 0.65s cubic-bezier(0.36, 0.07, 0.19, 0.97)
+    both;
 }
 .vetra-notification-count {
   position: absolute;
   z-index: 1;
-  top: -0.3rem;
-  right: -0.3rem;
+  top: -0.35rem;
+  right: -0.35rem;
   border: 2px solid #fff;
-  min-width: 1.4rem;
-  border-radius: 1rem;
-  padding: 0.04rem 0.23rem;
-  background: #a63336;
+  min-width: 1.45rem;
+  height: 1.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0 0.28rem;
+  background: #64748b;
   color: #fff;
   font-weight: 700;
   font-size: 0.68rem;
-  text-align: center;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+.vetra-notification-count.has-alerts {
+  background: #b91c1c;
+  box-shadow: 0 2px 8px #b91c1c45;
+}
+.vetra-notifications.has-alerts:not([open])
+  .vetra-notification-count.has-alerts::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 2px solid #dc2626;
+  animation: vetra-bell-pulse 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  pointer-events: none;
 }
 .vetra-notification-menu {
   position: absolute;
@@ -741,6 +786,325 @@ input:disabled {
   background: #fff;
   box-shadow: 0 16px 40px #102a4324;
   overflow: hidden;
+}
+
+@keyframes vetra-bell-vibrate {
+  0%,
+  32%,
+  100% {
+    transform: rotate(0deg);
+  }
+  4% {
+    transform: rotate(17deg);
+  }
+  8% {
+    transform: rotate(-15deg);
+  }
+  12% {
+    transform: rotate(12deg);
+  }
+  16% {
+    transform: rotate(-9deg);
+  }
+  20% {
+    transform: rotate(6deg);
+  }
+  24% {
+    transform: rotate(-3deg);
+  }
+  28% {
+    transform: rotate(1.5deg);
+  }
+}
+
+@keyframes vetra-bell-hover-vibrate {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(16deg);
+  }
+  30% {
+    transform: rotate(-14deg);
+  }
+  45% {
+    transform: rotate(11deg);
+  }
+  60% {
+    transform: rotate(-8deg);
+  }
+  75% {
+    transform: rotate(5deg);
+  }
+  90% {
+    transform: rotate(-2deg);
+  }
+}
+
+@keyframes vetra-bell-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.72;
+  }
+  70%,
+  100% {
+    transform: scale(1.75);
+    opacity: 0;
+  }
+}
+
+/* Ruban chronologique Mois / Année placé sous la bannière d'en-tête */
+.vetra-period-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.75rem;
+  background: #ffffff;
+  border: 1px solid #d9e4ee;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px #102a430a;
+}
+.vetra-period-year-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.vetra-period-year-dial {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.22rem 0.3rem;
+  background: #f3f7fb;
+  border: 1px solid #dbe5ef;
+  border-radius: 10px;
+}
+.vetra-period-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 7px;
+  background: #e5f3ef;
+  color: #11816d;
+  margin-right: 0.1rem;
+}
+.vetra-period-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 8px;
+  color: #4b6177;
+  background: transparent;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+.vetra-period-step:hover:not(:disabled) {
+  background: #e4edf5;
+  color: #102a43;
+}
+.vetra-period-step:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.vetra-period-year-btn {
+  min-width: 3.7rem;
+  height: 1.85rem;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: #102a43;
+  background: #ffffff;
+  border: 1px solid #dbe5ef;
+  box-shadow: 0 1px 2px #102a430c;
+  transition:
+    border-color 0.16s ease,
+    color 0.16s ease,
+    background-color 0.16s ease;
+}
+.vetra-period-year-btn:hover:not(:disabled),
+.vetra-period-year-btn[aria-expanded='true'] {
+  border-color: #11816d;
+  color: #11816d;
+  background: #f2faf8;
+}
+.vetra-year-popover {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  left: 0;
+  z-index: 30;
+  width: 15.5rem;
+  padding: 0.85rem;
+  background: #ffffff;
+  border: 1px solid #d5e1ec;
+  border-radius: 14px;
+  box-shadow: 0 18px 38px #102a4322;
+}
+.vetra-year-cell {
+  height: 2.1rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #274059;
+  background: #f6f9fc;
+  border: 1px solid transparent;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.vetra-year-cell:hover {
+  background: #e9f3f0;
+  color: #0e6959;
+  border-color: #b7dbd1;
+}
+.vetra-year-cell.is-today {
+  border-color: #11816d;
+}
+.vetra-year-cell.is-selected {
+  background: #123451;
+  color: #ffffff;
+  border-color: #123451;
+}
+.vetra-period-divider {
+  width: 1px;
+  height: 1.75rem;
+  background: #e2eaf2;
+  flex-shrink: 0;
+}
+.vetra-month-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.22rem;
+  flex: 1 1 28rem;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0.18rem;
+  background: #f3f7fb;
+  border: 1px solid #e1e9f1;
+  border-radius: 11px;
+  scrollbar-width: none;
+}
+.vetra-month-strip::-webkit-scrollbar {
+  display: none;
+}
+.vetra-month-btn {
+  position: relative;
+  flex: 1 0 auto;
+  min-width: 2.75rem;
+  height: 2rem;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4a6075;
+  background: transparent;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.16s ease,
+    transform 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.16s ease;
+}
+.vetra-month-btn.is-quarter-start {
+  margin-left: 0.22rem;
+}
+.vetra-month-btn:hover:not(:disabled):not(.is-active) {
+  background: #e5eef6;
+  color: #102a43;
+}
+.vetra-month-btn.is-active {
+  background: #123451;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 3px 10px #12345130;
+}
+.vetra-month-today-mark {
+  position: absolute;
+  bottom: 0.22rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0.9rem;
+  height: 2.5px;
+  border-radius: 999px;
+  background: #11816d;
+}
+.vetra-month-btn.is-active .vetra-month-today-mark {
+  background: #6ee7c8;
+}
+.vetra-period-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.vetra-period-nav-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.18rem 0.25rem;
+  background: #f3f7fb;
+  border: 1px solid #dbe5ef;
+  border-radius: 10px;
+}
+.vetra-period-readout {
+  padding: 0 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #123451;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.vetra-period-today-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  height: 2.2rem;
+  padding: 0 0.72rem;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: #0e6959;
+  background: #e8f5f1;
+  border: 1px solid #b8ded3;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.vetra-period-today-btn:hover:not(:disabled) {
+  background: #d8efe8;
+  border-color: #11816d;
+}
+
+@media (max-width: 900px) {
+  .vetra-period-divider {
+    display: none;
+  }
+  .vetra-period-actions {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vetra-notifications.has-alerts:not([open]) .vetra-bell-icon,
+  .vetra-notifications:not([open]) > summary:hover .vetra-bell-icon,
+  .vetra-notifications.has-alerts:not([open])
+    .vetra-notification-count.has-alerts::after {
+    animation: none;
+  }
 }
 .vetra-map-panel {
   display: grid;

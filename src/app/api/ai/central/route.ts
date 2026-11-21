@@ -18,6 +18,11 @@ import {
   generateStructuredJson,
 } from '@/lib/gemini';
 import { ensureDcspDemoReportsNormalized } from '@/lib/demo-dcsp';
+import {
+  getPreviewStore,
+  isPreviewMode,
+  previewHydrateService,
+} from '@/lib/preview-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -68,6 +73,30 @@ const requestSchema = z.discriminatedUnion('action', [
 ]);
 
 async function loadNationalData(minYear: number, maxYear: number) {
+  if (isPreviewMode()) {
+    const store = getPreviewStore();
+    const services: ScopedService[] = store.services.map((s) => {
+      const hydrated = previewHydrateService(s);
+      return {
+        id: hydrated.id,
+        name: hydrated.name,
+        kind: hydrated.kind,
+        region: hydrated.division.region,
+      };
+    });
+    const reports: ScopedReport[] = store.reports
+      .filter((r) => r.year >= minYear && r.year <= maxYear)
+      .map((r) => ({
+        id: r.id,
+        serviceId: r.serviceId,
+        year: r.year,
+        month: r.month,
+        status: r.status,
+        reason: r.reason,
+        data: r.data,
+      }));
+    return { services, reports };
+  }
   await ensureDcspDemoReportsNormalized(db);
   const [rawServices, rawReports] = await Promise.all([
     db.service.findMany({
