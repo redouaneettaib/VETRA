@@ -85,14 +85,16 @@ function extractErrorDetails(error: unknown): {
   return { httpStatus, code, message: rawMessage };
 }
 
-function isModelNotFound(error: unknown): boolean {
+function isModelUnavailable(error: unknown): boolean {
   const { httpStatus, code, message } = extractErrorDetails(error);
   const upper = `${code} ${message}`.toUpperCase();
   return (
     httpStatus === 404 ||
     upper.includes('NOT_FOUND') ||
     upper.includes('IS NOT FOUND') ||
-    upper.includes('NOT SUPPORTED FOR GENERATECONTENT')
+    upper.includes('NOT SUPPORTED FOR GENERATECONTENT') ||
+    (httpStatus === 403 &&
+      (upper.includes('MODEL') || upper.includes('PUBLISHER')))
   );
 }
 
@@ -105,6 +107,9 @@ function classifyError(error: unknown): AiServiceError {
     message: message.slice(0, 300),
   });
   const upper = `${code} ${message}`.toUpperCase();
+  const detail = [httpStatus ? `HTTP ${httpStatus}` : '', code]
+    .filter(Boolean)
+    .join(' · ');
 
   if (
     httpStatus === 401 ||
@@ -116,7 +121,7 @@ function classifyError(error: unknown): AiServiceError {
     upper.includes('UNAUTHENTICATED')
   ) {
     return new AiServiceError(
-      'Clé GEMINI_API_KEY invalide ou non autorisée par Google. Créez une clé API sur aistudio.google.com/apikey (commençant par AIza...) et mettez-la à jour dans Railway → Variables.',
+      `Clé GEMINI_API_KEY refusée par Google${detail ? ` (${detail})` : ''}. Créez une clé API Gemini sur aistudio.google.com/apikey (commençant par AIza...) et enregistrez-la dans Railway → Variables.`,
       403,
     );
   }
@@ -130,15 +135,12 @@ function classifyError(error: unknown): AiServiceError {
       429,
     );
   }
-  if (isModelNotFound(error)) {
+  if (isModelUnavailable(error)) {
     return new AiServiceError(
-      'Le modèle IA configuré n’est pas accessible avec cette clé API. Vérifiez les permissions du projet Google AI Studio.',
+      `Le modèle IA configuré n’est pas accessible avec cette clé API${detail ? ` (${detail})` : ''}. Vérifiez les permissions du projet Google AI Studio.`,
       502,
     );
   }
-  const detail = [httpStatus ? `HTTP ${httpStatus}` : '', code]
-    .filter(Boolean)
-    .join(' · ');
   return new AiServiceError(
     detail
       ? `Le service d’analyse IA a renvoyé une erreur (${detail}). Vérifiez la variable GEMINI_API_KEY sur Railway.`
@@ -168,9 +170,13 @@ async function runWithModelFallback<T>(
   runner: (ai: GoogleGenAI, model: string) => Promise<T>,
 ): Promise<T> {
   const ai = getClient();
+  const isVertexExpressKey = (process.env.GEMINI_API_KEY?.trim() || '').startsWith('AQ.');
+  const primaryModel = isVertexExpressKey && !process.env.GEMINI_MODEL
+    ? 'gemini-2.5-flash'
+    : VETRA_AI_MODEL;
   const candidates = [
-    VETRA_AI_MODEL,
-    ...FALLBACK_MODELS.filter((m) => m !== VETRA_AI_MODEL),
+    primaryModel,
+    ...FALLBACK_MODELS.filter((m) => m !== primaryModel),
   ];
 
   let lastError: unknown;
@@ -181,9 +187,9 @@ async function runWithModelFallback<T>(
         return await runner(ai, model);
       } catch (error) {
         lastError = error;
-        if (isModelNotFound(error) && mIdx < candidates.length - 1) {
+        if (isModelUnavailable(error) && mIdx < candidates.length - 1) {
           console.warn(
-            `VETRA Gemini model "${model}" indisponible (404), bascule vers "${candidates[mIdx + 1]}".`,
+            `VETRA Gemini model "${model}" indisponible, bascule vers "${candidates[mIdx + 1]}".`,
           );
           break;
         }

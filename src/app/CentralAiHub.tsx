@@ -329,7 +329,7 @@ export default function CentralAiHub({
                 value={summaryRubric}
                 disabled={summaryBusy}
                 onChange={(e) => setSummaryRubric(e.target.value)}
-                className="max-w-xs"
+                className="max-w-xs pr-8"
               >
                 <option value="">Toutes les rubriques</option>
                 {Object.entries(rubricLabels).map(([id, label]) => (
