@@ -22,8 +22,10 @@ import { z } from 'zod';
 import {
   calculate,
   calculatedCells,
+  defaultRubricsForKind,
   dynamicFields,
-  enabledRubrics,
+  effectiveRubrics,
+  isValidCompletedProgression,
   numericCells,
   readNumber,
 } from '@/lib/forms';
@@ -454,7 +456,20 @@ async function handle(
       )
         return fail('Nom, type et division valides obligatoires');
       if (body.action === 'service') {
-        result = await db.service.create({ data: { name, divisionId, kind } });
+        const defaultEnabled = new Set(defaultRubricsForKind(kind));
+        result = await db.service.create({
+          data: {
+            name,
+            divisionId,
+            kind,
+            rights: {
+              create: RUBRICS.map(([rubricId]) => ({
+                rubricId,
+                enabled: defaultEnabled.has(rubricId),
+              })),
+            },
+          },
+        });
       } else {
         const existing = await db.service.findUnique({
           where: { id: String(body.id) },
@@ -813,19 +828,12 @@ async function handle(
     if (!body.data || typeof body.data !== 'object' || Array.isArray(body.data))
       return fail('Données invalides');
     const data = obj(body.data);
-    const expected = enabledRubrics(
-      await db.rubricRight.findMany({ where: { serviceId } }),
-    );
-    const completed = data.__completed ?? [];
-    if (
-      !Array.isArray(completed) ||
-      new Set(completed).size !== completed.length ||
-      !expected
-        .slice(0, completed.length)
-        .every((id) => completed.includes(id)) ||
-      completed.length > expected.length
-    )
-      return fail('Complétez les rubriques dans l’ordre du canevas');
+    const serviceRecord = await db.service.findUnique({
+      where: { id: serviceId },
+      include: { rights: true },
+    });
+    if (!serviceRecord) return fail('Service introuvable', 404);
+    const expected = effectiveRubrics(serviceRecord.rights, serviceRecord.kind);
     const key = { serviceId_year_month: { serviceId, year, month } };
     const old = await db.report.findUnique({ where: key });
     if (old && !['BROUILLON', 'REVOQUE', 'CORRIGE'].includes(old.status))
@@ -836,6 +844,22 @@ async function handle(
         409,
       );
     const previous = obj(old?.data);
+    const previousCompleted = Array.isArray(previous.__completed)
+      ? previous.__completed.map(String)
+      : [];
+    const rawCompleted = data.__completed ?? [];
+    if (
+      !Array.isArray(rawCompleted) ||
+      !isValidCompletedProgression(
+        expected,
+        previousCompleted,
+        rawCompleted.map(String),
+      )
+    )
+      return fail('Complétez les rubriques dans l’ordre du canevas');
+    const completed = expected.filter((id) =>
+      rawCompleted.map(String).includes(id),
+    );
     const next: Input = { ...previous, __completed: completed };
     for (const [cell, value] of Object.entries(data)) {
       if (cell === '__completed' || cell === '__tables') continue;
@@ -967,10 +991,7 @@ async function handle(
       const rights = await db.rubricRight.findMany({
         where: { serviceId: report.serviceId },
       });
-      const expected = RUBRICS.map(([id]) => id).filter(
-        (id) =>
-          !rights.length || rights.some((r) => r.rubricId === id && r.enabled),
-      );
+      const expected = effectiveRubrics(rights, report.service.kind);
       const completed = obj(report.data).__completed;
       if (!expected.length) return fail('Aucune rubrique habilitée', 409);
       if (
@@ -1010,6 +1031,14 @@ async function handle(
       )
         return fail('Motif de révocation obligatoire');
     } else return fail('Action inconnue');
+    let validatedData: Input | undefined;
+    if (status === 'VALIDE') {
+      const rights = await db.rubricRight.findMany({
+        where: { serviceId: report.serviceId },
+      });
+      const expected = effectiveRubrics(rights, report.service.kind);
+      validatedData = { ...obj(report.data), __completed: expected };
+    }
     const updated = await db.$transaction(async (tx) => {
       const result = await tx.report.updateMany({
         where: {
@@ -1020,6 +1049,7 @@ async function handle(
         data: {
           status,
           reason: status === 'REVOQUE' ? body.reason.trim() : null,
+          ...(validatedData ? { data: validatedData } : {}),
         },
       });
       if (result.count !== 1) return null;

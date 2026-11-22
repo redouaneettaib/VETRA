@@ -193,6 +193,44 @@ export function enabledRubrics(
       rights.some((right) => right.rubricId === id && right.enabled),
   );
 }
+export function defaultRubricsForKind(kind?: string | null) {
+  return rubricIds.filter((id) =>
+    kind === 'FRONTALIER' ? id === 'IV' : id !== 'IV',
+  );
+}
+export function effectiveRubrics(
+  rights: { rubricId: string; enabled: boolean }[],
+  kind?: string | null,
+) {
+  if (!rights.length) {
+    return kind ? defaultRubricsForKind(kind) : [...rubricIds];
+  }
+  return rubricIds.filter((id) =>
+    rights.some((right) => right.rubricId === id && right.enabled),
+  );
+}
+export function isValidCompletedProgression(
+  expected: readonly string[],
+  previousCompleted: readonly string[],
+  nextCompleted: readonly string[],
+) {
+  if (new Set(nextCompleted).size !== nextCompleted.length) return false;
+  if (nextCompleted.some((id) => !expected.includes(id))) return false;
+  const prevValid = new Set(
+    previousCompleted.filter((id) => expected.includes(id)),
+  );
+  // Every newly completed step must be unlocked in order (no jumping past earlier uncompleted steps)
+  const working = new Set(prevValid);
+  const newlyAdded = expected.filter(
+    (id) => nextCompleted.includes(id) && !prevValid.has(id),
+  );
+  for (const id of newlyAdded) {
+    const firstMissing = expected.find((candidate) => !working.has(candidate));
+    if (firstMissing !== id) return false;
+    working.add(id);
+  }
+  return true;
+}
 export function cellRubric(address: string) {
   return rubricForRow(Number(/\d+$/.exec(address)?.[0]));
 }

@@ -4,7 +4,9 @@ import { CANEVAS, RUBRICS } from './canevas';
 import {
   calculate,
   calculatedCells,
-  enabledRubrics,
+  defaultRubricsForKind,
+  effectiveRubrics,
+  isValidCompletedProgression,
   numericCells,
   readNumber,
 } from './forms';
@@ -201,12 +203,27 @@ export async function handlePreviewRoute(
     if (body.action === 'rights') {
       const srv = store.services.find((s) => s.id === String(body.serviceId));
       if (!srv) return fail('Service introuvable', 404);
-      const rights = Array.isArray(body.rights) ? body.rights : [];
-      srv.rights = rights.map((r: any) => ({
-        serviceId: srv.id,
-        rubricId: String(r.rubricId),
-        enabled: Boolean(r.enabled),
-      }));
+      if (Array.isArray(body.enabled)) {
+        if (
+          body.enabled.some((id: unknown) => !RUBRICS.some((r) => r[0] === id))
+        ) {
+          return fail('Liste invalide');
+        }
+        const enabledSet = new Set(body.enabled.map(String));
+        srv.rights = RUBRICS.map(([rubricId]) => ({
+          serviceId: srv.id,
+          rubricId,
+          enabled: enabledSet.has(rubricId),
+        }));
+      } else if (Array.isArray(body.rights)) {
+        srv.rights = body.rights.map((r: any) => ({
+          serviceId: srv.id,
+          rubricId: String(r.rubricId),
+          enabled: Boolean(r.enabled),
+        }));
+      } else {
+        return fail('Liste invalide');
+      }
       return Response.json({ ok: true, id: srv.id });
     }
     if (body.action === 'service') {
@@ -217,6 +234,7 @@ export async function handlePreviewRoute(
         return fail('Nom, type et division valides obligatoires');
       }
       const id = previewNextId('srv');
+      const defaultEnabled = new Set(defaultRubricsForKind(kind));
       store.services.push({
         id,
         name,
@@ -225,7 +243,7 @@ export async function handlePreviewRoute(
         rights: RUBRICS.map(([rubricId]) => ({
           serviceId: id,
           rubricId,
-          enabled: kind === 'FRONTALIER' ? rubricId === 'IV' : true,
+          enabled: defaultEnabled.has(rubricId),
         })),
       });
       return Response.json({ ok: true, id });
@@ -327,21 +345,44 @@ export async function handlePreviewRoute(
     const month = Number(body.month);
     const data = obj(body.data);
     const srv = store.services.find((s) => s.id === u.serviceId);
-    const expected = enabledRubrics(srv?.rights ?? []);
+    if (!srv) return fail('Service introuvable', 404);
+    const expected = effectiveRubrics(srv.rights, srv.kind);
     const existing = store.reports.find(
       (r) => r.serviceId === u.serviceId && r.year === year && r.month === month,
     );
     if (existing && !['BROUILLON', 'REVOQUE', 'CORRIGE'].includes(existing.status)) {
       return fail('Rapport verrouillé', 409);
     }
+    const previousCompleted = Array.isArray(existing?.data?.__completed)
+      ? (existing!.data.__completed as unknown[]).map(String)
+      : [];
+    const rawCompleted = data.__completed ?? [];
+    if (
+      !Array.isArray(rawCompleted) ||
+      !isValidCompletedProgression(
+        expected,
+        previousCompleted,
+        rawCompleted.map(String),
+      )
+    ) {
+      return fail('Complétez les rubriques dans l’ordre du canevas');
+    }
+    const completed = expected.filter((id) =>
+      rawCompleted.map(String).includes(id),
+    );
     const next: Record<string, unknown> = {
       ...(existing?.data ?? {}),
-      __completed: Array.isArray(data.__completed) ? data.__completed : [],
+      __completed: completed,
     };
     for (const [cell, value] of Object.entries(data)) {
       if (cell === '__completed' || cell === '__tables') continue;
+      if (existing && Object.hasOwn(existing.data, cell) && existing.data[cell] === value) {
+        continue;
+      }
       const field = numericCells.get(cell);
-      if (!field || !expected.some((id) => id === field.rubric)) continue;
+      if (!field || !expected.some((id) => id === field.rubric)) {
+        return fail('Cellule non habilitée : ' + cell, 403);
+      }
       if (value === '') delete next[cell];
       else {
         const num = readNumber(value);
@@ -378,18 +419,61 @@ export async function handlePreviewRoute(
   if (path === 'workflow' && method === 'POST') {
     const report = store.reports.find((r) => r.id === String(body.id));
     if (!report) return fail('Rapport introuvable', 404);
+    const srv = store.services.find((s) => s.id === report.serviceId);
+    if (!srv) return fail('Service introuvable', 404);
     const action = String(body.action);
     const oldStatus = report.status;
     let nextStatus: Status;
     if (action === 'soumettre') {
+      if (
+        u.role !== 'CHEF_SERVICE' ||
+        u.serviceId !== report.serviceId ||
+        !['BROUILLON', 'CORRIGE'].includes(report.status)
+      ) {
+        return fail('Soumission non autorisée', 403);
+      }
+      const expected = effectiveRubrics(srv.rights, srv.kind);
+      const completed = obj(report.data).__completed;
+      if (!expected.length) return fail('Aucune rubrique habilitée', 409);
+      if (
+        !Array.isArray(completed) ||
+        expected.some((id) => !completed.includes(id))
+      ) {
+        return fail(
+          'Rubriques incomplètes : ' +
+            expected
+              .filter(
+                (id) => !Array.isArray(completed) || !completed.includes(id),
+              )
+              .join(', '),
+          409,
+        );
+      }
       nextStatus = 'SOUMIS';
-    } else if (action === 'valider') {
-      nextStatus = 'VALIDE';
-    } else if (action === 'revoquer') {
-      if (typeof body.reason !== 'string' || !body.reason.trim()) {
+    } else if (action === 'valider' || action === 'revoquer') {
+      const divisionCanDecide =
+        u.role === 'CHEF_DIVISION' &&
+        u.divisionId === srv.divisionId &&
+        report.status === 'SOUMIS';
+      const centralCanRevoke =
+        action === 'revoquer' &&
+        u.role === 'DIRECTION_CENTRALE' &&
+        ['SOUMIS', 'VALIDE'].includes(report.status);
+      if (!divisionCanDecide && !centralCanRevoke) {
+        return fail(
+          action === 'valider'
+            ? 'Validation non autorisée'
+            : 'Révocation non autorisée',
+          403,
+        );
+      }
+      if (
+        action === 'revoquer' &&
+        (typeof body.reason !== 'string' || !body.reason.trim())
+      ) {
         return fail('Motif de révocation obligatoire');
       }
-      nextStatus = 'REVOQUE';
+      nextStatus = action === 'valider' ? 'VALIDE' : 'REVOQUE';
     } else {
       return fail('Action inconnue');
     }

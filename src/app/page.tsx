@@ -60,7 +60,7 @@ import RubricIcon from './RubricIcon';
 import RegionalMap from './RegionalMap';
 import ReportNotifications from './ReportNotifications';
 import PeriodRibbon from './PeriodRibbon';
-import { enabledRubrics, rubricIds } from '@/lib/forms';
+import { effectiveRubrics, rubricIds } from '@/lib/forms';
 import { months } from '@/lib/analytics';
 
 function Brand() {
@@ -208,19 +208,11 @@ export default function Home() {
   const current = reports.find(
     (r) => r.serviceId === service && r.year === year && r.month === month,
   );
-  const reviewingService = me?.user.role !== 'CHEF_SERVICE';
   const permittedSections = selectedService
-    ? enabledRubrics(selectedService.rights).filter(
-        (id) =>
-          !reviewingService ||
-          selectedService.kind !== 'FRONTALIER' ||
-          id === 'IV',
-      )
+    ? effectiveRubrics(selectedService.rights, selectedService.kind)
     : [];
   const sectionGroup = (id: string) => id.split('.')[0];
-  const visibleSections = reviewingService
-    ? [...new Set(permittedSections.map(sectionGroup))]
-    : ['I', 'II', 'III', 'IV', 'V', 'VI'];
+  const visibleSections = [...new Set(permittedSections.map(sectionGroup))];
   const [loadedPeriod, setLoadedPeriod] = useState('');
   const periodReady = loadedPeriod === year + '-' + month;
   const [serviceKind, setServiceKind] = useState('');
@@ -276,52 +268,56 @@ export default function Home() {
     });
   const [adminRole, setAdminRole] = useState('CHEF_SERVICE');
   const [editingService, setEditingService] = useState('');
+  const isFinalizedReport =
+    current?.status === 'VALIDE' || current?.status === 'SOUMIS';
   const storedSteps: Array<string> = Array.isArray(values.__completed)
-    ? values.__completed
+    ? values.__completed.map(String)
     : [];
-  const firstMissing = permittedSections.findIndex(
-    (id) => !storedSteps.includes(id),
-  );
-  const completedSteps =
-    firstMissing < 0
-      ? permittedSections
-      : permittedSections.slice(0, firstMissing);
-  const nextSection = permittedSections.find(
-    (id) => !completedSteps.includes(id),
-  );
+  const completedSteps = isFinalizedReport
+    ? permittedSections
+    : permittedSections.filter((id) => storedSteps.includes(id));
+  const nextSection = isFinalizedReport
+    ? undefined
+    : permittedSections.find((id) => !completedSteps.includes(id));
   const editable =
     periodReady &&
     !!selectedService &&
     me?.user.role === 'CHEF_SERVICE' &&
     (!current || ['BROUILLON', 'REVOQUE', 'CORRIGE'].includes(current.status));
-  const assigned =
-    org.services.find((s: Any) => s.id === service)?.rights || [];
+  const selectedAdminService = org.services.find((s: Any) => s.id === service);
   const enabled = (id: string) =>
-    !assigned.length ||
-    assigned.some((x: Any) => x.rubricId === id && x.enabled);
+    selectedAdminService
+      ? effectiveRubrics(
+          selectedAdminService.rights || [],
+          selectedAdminService.kind,
+        ).includes(id as (typeof rubricIds)[number])
+      : false;
   useEffect(() => {
     if (!periodReady) return;
+    const finalized =
+      current?.status === 'VALIDE' || current?.status === 'SOUMIS';
     const history = Array.isArray(current?.data?.__completed)
-      ? current.data.__completed
+      ? current.data.__completed.map(String)
       : [];
-    const missing = permittedSections.findIndex((id) => !history.includes(id));
-    const completed =
-      missing < 0 ? permittedSections : permittedSections.slice(0, missing);
+    const completed = finalized
+      ? permittedSections
+      : permittedSections.filter((id) => history.includes(id));
     setValues(current?.data || {});
     setRubric((prev) =>
       permittedSections.includes(prev as (typeof rubricIds)[number]) &&
       (!editable ||
         completed.some((id) => id === prev) ||
-        prev === permittedSections.find((id) => !completed?.includes(id)))
+        prev === permittedSections.find((id) => !completed.includes(id)))
         ? prev
         : editable
-          ? (permittedSections.find((id) => !completed?.includes(id)) ??
+          ? (permittedSections.find((id) => !completed.includes(id)) ??
             permittedSections[0] ??
             '')
           : (permittedSections[0] ?? ''),
     );
   }, [
     current?.id,
+    current?.status,
     current?.updatedAt,
     service,
     year,
@@ -984,7 +980,11 @@ export default function Home() {
                     <div className="vetra-saisie-progress-head">
                       <div className="vetra-saisie-progress-info">
                         <span className="vetra-saisie-progress-title">
-                          Progression de la saisie
+                          {current?.status === 'VALIDE'
+                            ? 'Rapport validé'
+                            : current?.status === 'SOUMIS'
+                              ? 'Rapport soumis'
+                              : 'Progression de la saisie'}
                         </span>
                         <span
                           className="vetra-saisie-progress-sep"
@@ -995,9 +995,17 @@ export default function Home() {
                         <span className="vetra-saisie-progress-count tabular-nums">
                           <strong>{completedCount}</strong> /{' '}
                           {permittedSections.length}{' '}
-                          {permittedSections.length > 1
-                            ? 'rubriques complétées'
-                            : 'rubrique complétée'}
+                          {current?.status === 'VALIDE'
+                            ? permittedSections.length > 1
+                              ? 'rubriques validées'
+                              : 'rubrique validée'
+                            : current?.status === 'SOUMIS'
+                              ? permittedSections.length > 1
+                                ? 'rubriques soumises'
+                                : 'rubrique soumise'
+                              : permittedSections.length > 1
+                                ? 'rubriques complétées'
+                                : 'rubrique complétée'}
                         </span>
                         <span className="vetra-saisie-progress-pct tabular-nums">
                           {progressPct}%
@@ -1064,8 +1072,11 @@ export default function Home() {
                           items.length > 0 &&
                           (!editable ||
                             !nextSection ||
-                            permittedSections.indexOf(items[0]) <=
-                              permittedSections.indexOf(nextSection));
+                            items.some(
+                              (id) =>
+                                completedSteps.includes(id) ||
+                                id === nextSection,
+                            ));
                         const isActive = sectionGroup(rubric) === sec;
 
                         return (
@@ -1199,8 +1210,8 @@ export default function Home() {
                               <span>
                                 Les totaux surlignés se mettent à jour
                                 instantanément dès la saisie.
-                                {editable && nextSection
-                                  ? ' La rubrique suivante s’ouvre après enregistrement.'
+                                {editable
+                                  ? ' Aucune activité sur cette rubrique ce mois-ci ? Laissez les champs vides et cliquez sur « Enregistrer et continuer ».'
                                   : ''}
                               </span>
                             </p>
@@ -1258,91 +1269,141 @@ export default function Home() {
               );
             })()}
 
-            <div className="vetra-saisie-dock">
-              <div className="vetra-saisie-dock-primary">
-                <button
-                  type="button"
-                  disabled={!editable || busy || !permittedSections.length}
-                  className="vetra-dock-btn is-secondary"
-                  onClick={save}
-                >
-                  <Save size={16} aria-hidden="true" />
-                  <span>Enregistrer le brouillon</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    !editable || busy || !rubric || rubric !== nextSection
-                  }
-                  className="vetra-dock-btn is-primary"
-                  onClick={completeRubric}
-                >
-                  <span>Enregistrer et continuer</span>
-                  <ArrowRight size={16} aria-hidden="true" />
-                </button>
-                {!!permittedSections.length && !nextSection && (
-                  <button
-                    type="button"
-                    disabled={!editable || busy || !current?.id}
-                    className="vetra-dock-btn is-submit"
-                    onClick={() => action(current?.id || '', 'soumettre')}
+            {(editable || current) && (
+              <div className="vetra-saisie-dock">
+                <div className="vetra-saisie-dock-primary">
+                  {editable ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={busy || !permittedSections.length}
+                        className="vetra-dock-btn is-secondary"
+                        onClick={save}
+                      >
+                        <Save size={16} aria-hidden="true" />
+                        <span>Enregistrer le brouillon</span>
+                      </button>
+                      {nextSection && (
+                        <button
+                          type="button"
+                          disabled={busy || !rubric || rubric !== nextSection}
+                          className="vetra-dock-btn is-primary"
+                          onClick={completeRubric}
+                        >
+                          <span>
+                            {completedSteps.length + 1 ===
+                            permittedSections.length
+                              ? 'Enregistrer la dernière rubrique'
+                              : 'Enregistrer et continuer'}
+                          </span>
+                          <ArrowRight size={16} aria-hidden="true" />
+                        </button>
+                      )}
+                      {!!permittedSections.length && !nextSection && (
+                        <button
+                          type="button"
+                          disabled={busy || !current?.id}
+                          className="vetra-dock-btn is-submit"
+                          onClick={() => action(current?.id || '', 'soumettre')}
+                        >
+                          <Send size={15} aria-hidden="true" />
+                          <span>Soumettre le rapport complet</span>
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      {current?.status === 'VALIDE' ? (
+                        <>
+                          <BadgeCheck
+                            size={16}
+                            className="text-emerald-700 shrink-0"
+                            aria-hidden="true"
+                          />
+                          <span className="font-semibold text-emerald-800">
+                            Rapport validé
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>Consultation et export uniquement</span>
+                        </>
+                      ) : current?.status === 'SOUMIS' ? (
+                        <>
+                          <Clock3
+                            size={16}
+                            className="text-amber-700 shrink-0"
+                            aria-hidden="true"
+                          />
+                          <span className="font-semibold text-amber-800">
+                            Rapport soumis
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>En attente de validation</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock
+                            size={15}
+                            className="text-slate-500 shrink-0"
+                            aria-hidden="true"
+                          />
+                          <span>Mode consultation (lecture seule)</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {current && (
+                  <div
+                    className="vetra-saisie-dock-exports"
+                    aria-label="Exporter ou partager ce rapport"
                   >
-                    <Send size={15} aria-hidden="true" />
-                    <span>Soumettre le rapport complet</span>
-                  </button>
+                    <button
+                      type="button"
+                      title="Télécharger en Excel (XLSX)"
+                      aria-label="Télécharger en Excel (XLSX)"
+                      className="vetra-action-icon vetra-action-excel"
+                      onClick={() => download(current.id, 'xlsx')}
+                    >
+                      <img
+                        src="/icons/excel.png"
+                        alt=""
+                        width={22}
+                        height={22}
+                        className="vetra-brand-icon"
+                        referrerPolicy="no-referrer"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      title="Télécharger en PDF (Acrobat Reader)"
+                      aria-label="Télécharger en PDF (Acrobat Reader)"
+                      className="vetra-action-icon vetra-action-pdf"
+                      onClick={() => download(current.id, 'pdf')}
+                    >
+                      <img
+                        src="/icons/acrobat.png"
+                        alt=""
+                        width={22}
+                        height={22}
+                        className="vetra-brand-icon"
+                        referrerPolicy="no-referrer"
+                      />
+                    </button>
+                    <ReportEmail
+                      key={current.id}
+                      endpoint={`/api/export/email?id=${encodeURIComponent(current.id)}`}
+                      title={`Rapport ${current.month}/${current.year} · ${selectedService?.name ?? ''}`}
+                    />
+                    <ReportShare
+                      key={current.id + current.updatedAt}
+                      url={`/api/export?id=${encodeURIComponent(current.id)}&type=pdf`}
+                      title={`Rapport ${current.month}/${current.year} · ${selectedService?.name ?? ''}`}
+                    />
+                  </div>
                 )}
               </div>
-
-              {current && (
-                <div
-                  className="vetra-saisie-dock-exports"
-                  aria-label="Exporter ou partager ce rapport"
-                >
-                  <button
-                    type="button"
-                    title="Télécharger en Excel (XLSX)"
-                    aria-label="Télécharger en Excel (XLSX)"
-                    className="vetra-action-icon vetra-action-excel"
-                    onClick={() => download(current.id, 'xlsx')}
-                  >
-                    <img
-                      src="/icons/excel.png"
-                      alt=""
-                      width={22}
-                      height={22}
-                      className="vetra-brand-icon"
-                      referrerPolicy="no-referrer"
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    title="Télécharger en PDF (Acrobat Reader)"
-                    aria-label="Télécharger en PDF (Acrobat Reader)"
-                    className="vetra-action-icon vetra-action-pdf"
-                    onClick={() => download(current.id, 'pdf')}
-                  >
-                    <img
-                      src="/icons/acrobat.png"
-                      alt=""
-                      width={22}
-                      height={22}
-                      className="vetra-brand-icon"
-                      referrerPolicy="no-referrer"
-                    />
-                  </button>
-                  <ReportEmail
-                    key={current.id}
-                    endpoint={`/api/export/email?id=${encodeURIComponent(current.id)}`}
-                    title={`Rapport ${current.month}/${current.year} · ${selectedService?.name ?? ''}`}
-                  />
-                  <ReportShare
-                    key={current.id + current.updatedAt}
-                    url={`/api/export?id=${encodeURIComponent(current.id)}&type=pdf`}
-                    title={`Rapport ${current.month}/${current.year} · ${selectedService?.name ?? ''}`}
-                  />
-                </div>
-              )}
-            </div>
+            )}
           </div>
         )}
         {tab === 'rapports' && periodReady && (

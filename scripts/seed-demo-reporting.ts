@@ -12,6 +12,7 @@ import {
   isDcspService,
   needsDcspDemoNormalization,
 } from '../src/lib/demo-dcsp';
+import { effectiveRubrics } from '../src/lib/forms';
 
 const db = new PrismaClient();
 const overwrite = process.env.DEMO_OVERWRITE === 'true';
@@ -100,6 +101,8 @@ async function main() {
           continue;
         }
         const base = (serviceIndex + 1) * 100 + (year - 2025) * 25 + month * 4;
+        const status = statusFor(serviceIndex, year, month);
+        const permitted = effectiveRubrics(service.rights, service.kind);
         const data: Prisma.InputJsonValue = dcsp
           ? (buildDcspDemoReportData(
               serviceIndex,
@@ -108,6 +111,8 @@ async function main() {
             ) as Prisma.InputJsonValue)
           : {
               __demo: true,
+              __completed:
+                status === 'BROUILLON' ? permitted.slice(0, 1) : [...permitted],
               B9: base,
               C9: base + 12,
               D9: base + 4,
@@ -117,7 +122,6 @@ async function main() {
               B11: (serviceIndex + month) % 8,
               C11: (serviceIndex + month * 2) % 11,
             };
-        const status = statusFor(serviceIndex, year, month);
         if (existing) {
           await db.report.update({
             where: { id: existing.id },

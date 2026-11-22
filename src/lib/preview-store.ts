@@ -1,6 +1,6 @@
 import type { Kind, Role, Status, User } from '@prisma/client';
 import { buildDcspDemoReportData } from './demo-dcsp';
-import { rubricIds } from './forms';
+import { defaultRubricsForKind, effectiveRubrics, rubricIds } from './forms';
 
 export const PREVIEW_PASSWORD = 'VetraPreview2026!';
 
@@ -170,18 +170,12 @@ function createInitialState(): PreviewState {
   const services: PreviewService[] = SERVICE_SEEDS.map((seed) => {
     const region = regionByName.get(seed.regionName)!;
     const division = divisionByRegionId.get(region.id)!;
-    const rights: PreviewRight[] =
-      seed.kind === 'FRONTALIER'
-        ? rubricIds.map((rubricId) => ({
-            serviceId: seed.id,
-            rubricId,
-            enabled: rubricId === 'IV',
-          }))
-        : rubricIds.map((rubricId) => ({
-            serviceId: seed.id,
-            rubricId,
-            enabled: true,
-          }));
+    const defaultEnabled = new Set(defaultRubricsForKind(seed.kind));
+    const rights: PreviewRight[] = rubricIds.map((rubricId) => ({
+      serviceId: seed.id,
+      rubricId,
+      enabled: defaultEnabled.has(rubricId),
+    }));
     return {
       id: seed.id,
       name: seed.name,
@@ -316,13 +310,16 @@ function createInitialState(): PreviewState {
               : STATUS_CYCLE[(serviceIndex * 3 + month + year) % STATUS_CYCLE.length];
 
         const base = (serviceIndex + 1) * 100 + (year - (currentYear - 1)) * 25 + month * 4;
+        const serviceRubrics = effectiveRubrics(service.rights, service.kind);
         const data: Record<string, unknown> =
           service.kind === 'FRONTALIER'
             ? buildDcspDemoReportData(serviceIndex, year, month)
             : {
                 __demo: true,
                 __completed:
-                  status === 'BROUILLON' ? ['I.A.1'] : [...rubricIds],
+                  status === 'BROUILLON'
+                    ? serviceRubrics.slice(0, 1)
+                    : [...serviceRubrics],
                 B9: base,
                 C9: base + 12,
                 D9: base + 4,
