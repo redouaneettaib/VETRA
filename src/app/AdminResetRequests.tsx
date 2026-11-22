@@ -50,8 +50,8 @@ export default function AdminResetRequests({
           </h2>
           <p className="text-sm text-slate-600 mt-0.5">
             {hasPending
-              ? 'Ces utilisateurs ont sollicité l’administrateur depuis l’écran de connexion. Générez un code à 6 chiffres ou définissez un nouveau mot de passe.'
-              : 'Aucune demande en attente. Lorsqu’un utilisateur clique sur « Mot de passe oublié ? » depuis l’écran de connexion, sa demande s’affiche automatiquement ici.'}
+              ? 'Ces utilisateurs n’ont pas pu finaliser la réinitialisation automatique par e-mail. Générez un code à 6 chiffres ou un mot de passe temporaire.'
+              : 'Aucune demande manuelle en attente. Lorsque la messagerie (Resend / SMTP) est active, les utilisateurs réinitialisent leur mot de passe directement par e-mail sans intervention administrateur.'}
           </p>
         </div>
       </div>

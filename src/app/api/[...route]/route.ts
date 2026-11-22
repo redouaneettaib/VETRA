@@ -243,36 +243,40 @@ async function handle(
     const user = await findUserByEmail(parsedEmail.data);
     const hasMail = mailConfigured();
     if (user && user.active) {
-      const reason = note || 'Demande depuis l’écran de connexion';
-      const latestResetEvent = await db.event.findFirst({
-        where: {
-          userId: user.id,
-          action: { in: ['PASSWORD_RESET_REQUEST', 'PASSWORD_RESET_RESOLVED'] },
-        },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        select: { id: true, action: true, reason: true, createdAt: true },
-      });
-      const isDuplicateActiveRequest =
-        latestResetEvent?.action === 'PASSWORD_RESET_REQUEST' &&
-        latestResetEvent.createdAt.getTime() > Date.now() - 60_000 &&
-        (!note || latestResetEvent.reason === reason);
-      if (!isDuplicateActiveRequest) {
-        await db.event.create({
-          data: {
-            userId: user.id,
-            action: 'PASSWORD_RESET_REQUEST',
-            reason,
-          },
-        });
-      }
+      let sentByEmail = false;
       if (hasMail) {
         try {
           await otp(user.id, 'RESET', user.email);
+          sentByEmail = true;
         } catch (error) {
           console.error(
-            'VETRA reset email failed (admin request still recorded):',
+            'VETRA reset email failed (recording admin fallback request):',
             error instanceof Error ? error.message : 'unknown error',
           );
+        }
+      }
+      if (!sentByEmail) {
+        const reason = note || 'Demande depuis l’écran de connexion';
+        const latestResetEvent = await db.event.findFirst({
+          where: {
+            userId: user.id,
+            action: { in: ['PASSWORD_RESET_REQUEST', 'PASSWORD_RESET_RESOLVED'] },
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          select: { id: true, action: true, reason: true, createdAt: true },
+        });
+        const isDuplicateActiveRequest =
+          latestResetEvent?.action === 'PASSWORD_RESET_REQUEST' &&
+          latestResetEvent.createdAt.getTime() > Date.now() - 60_000 &&
+          (!note || latestResetEvent.reason === reason);
+        if (!isDuplicateActiveRequest) {
+          await db.event.create({
+            data: {
+              userId: user.id,
+              action: 'PASSWORD_RESET_REQUEST',
+              reason,
+            },
+          });
         }
       }
     }

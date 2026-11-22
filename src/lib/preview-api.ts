@@ -20,7 +20,13 @@ import {
   fail,
   setSession,
 } from './auth';
-import { mailStatus } from './mail';
+import {
+  buildAdminResetPasswordEmailHtml,
+  buildOtpEmailHtml,
+  email,
+  mailConfigured,
+  mailStatus,
+} from './mail';
 import {
   getPreviewStore,
   PREVIEW_PASSWORD,
@@ -87,25 +93,49 @@ export async function handlePreviewRoute(
   }
 
   if (path === 'password/request' && method === 'POST') {
-    const email = String(body.email || '').trim().toLowerCase();
-    const user = previewFindUserByEmail(email);
+    const emailAddress = String(body.email || '').trim().toLowerCase();
+    const user = previewFindUserByEmail(emailAddress);
+    const hasMail = mailConfigured();
     if (user && user.active) {
-      const store = getPreviewStore();
-      store.events.push({
-        id: previewNextId('evt'),
-        userId: user.id,
-        reportId: null,
-        action: 'PASSWORD_RESET_REQUEST',
-        oldStatus: null,
-        newStatus: null,
-        reason:
-          typeof body.note === 'string' && body.note.trim()
-            ? body.note.trim().slice(0, 200)
-            : 'Demande depuis l’écran de connexion (aperçu)',
-        createdAt: new Date(),
-      });
+      let sentByEmail = false;
+      if (hasMail) {
+        const code = String(crypto.randomInt(100000, 1000000));
+        const expiresAt = Date.now() + 10 * 60_000;
+        try {
+          await email(
+            user.email,
+            'VETRA — Réinitialisation du mot de passe',
+            `Code à usage unique : ${code}. Expiration : 10 minutes.`,
+            undefined,
+            buildOtpEmailHtml('RESET', code, '10 minutes'),
+          );
+          resetCodes.set(user.id, { code, expiresAt });
+          sentByEmail = true;
+        } catch (error) {
+          console.error(
+            'VETRA preview reset email failed:',
+            error instanceof Error ? error.message : 'unknown error',
+          );
+        }
+      }
+      if (!sentByEmail) {
+        const store = getPreviewStore();
+        store.events.push({
+          id: previewNextId('evt'),
+          userId: user.id,
+          reportId: null,
+          action: 'PASSWORD_RESET_REQUEST',
+          oldStatus: null,
+          newStatus: null,
+          reason:
+            typeof body.note === 'string' && body.note.trim()
+              ? body.note.trim().slice(0, 200)
+              : 'Demande depuis l’écran de connexion (aperçu)',
+          createdAt: new Date(),
+        });
+      }
     }
-    return Response.json({ ok: true, mode: 'admin' });
+    return Response.json({ ok: true, mode: hasMail ? 'email' : 'admin' });
   }
 
   if (path === 'password/reset' && method === 'POST') {
@@ -342,14 +372,35 @@ export async function handlePreviewRoute(
         reason: `Code temporaire 24h généré par ${u.firstName} ${u.name}`,
         createdAt: new Date(),
       });
+      const isMailConfigured = mailConfigured();
+      let emailed = false;
+      let emailError = '';
+      if (body.sendEmail !== false && isMailConfigured) {
+        try {
+          await email(
+            target.email,
+            'VETRA — Code de réinitialisation de votre mot de passe',
+            `Votre code de réinitialisation VETRA est : ${code}\nValable 24 heures (usage unique, 5 tentatives maximum).\n\nSur l’écran de connexion, cliquez sur « Mot de passe oublié ? » puis « J’ai reçu un code à 6 chiffres » pour choisir votre nouveau mot de passe.\n\nONSSA / DPA — VETRA`,
+            undefined,
+            buildOtpEmailHtml('RESET', code, '24 heures'),
+          );
+          emailed = true;
+        } catch (cause) {
+          emailError =
+            cause instanceof Error
+              ? cause.message
+              : 'Envoi par e-mail non confirmé.';
+        }
+      }
       return Response.json(
         {
           ok: true,
           id,
           code,
           expiresAt: new Date(expiresAt).toISOString(),
-          emailed: false,
-          mailConfigured: mailStatus().configured,
+          emailed,
+          mailConfigured: isMailConfigured,
+          ...(emailError ? { emailError } : {}),
         },
         { headers: { 'Cache-Control': 'private, no-store' } },
       );
@@ -392,17 +443,72 @@ export async function handlePreviewRoute(
         reason: `Mot de passe réinitialisé par ${u.firstName} ${u.name}`,
         createdAt: new Date(),
       });
+      const isMailConfigured = mailConfigured();
+      let emailed = false;
+      let emailError = '';
+      if (body.sendEmail !== false && isMailConfigured) {
+        const fullName = `${target.firstName} ${target.name}`.trim();
+        try {
+          await email(
+            target.email,
+            'VETRA — Votre nouveau mot de passe temporaire',
+            `Bonjour ${fullName},\n\nL’administrateur national a réinitialisé l’accès à votre compte VETRA.\nVotre mot de passe temporaire est : ${password}\n\nModifiez-le dès votre connexion depuis le menu « Modifier mon mot de passe ».\n\nONSSA / DPA — VETRA`,
+            undefined,
+            buildAdminResetPasswordEmailHtml(password, fullName),
+          );
+          emailed = true;
+        } catch (cause) {
+          emailError =
+            cause instanceof Error
+              ? cause.message
+              : 'Envoi par e-mail non confirmé.';
+        }
+      }
       return Response.json(
         {
           ok: true,
           id: target.id,
           password,
-          emailed: false,
-          notified: false,
-          mailConfigured: mailStatus().configured,
+          emailed,
+          notified: emailed,
+          mailConfigured: isMailConfigured,
+          ...(emailError ? { emailError, notifyError: emailError } : {}),
         },
         { headers: { 'Cache-Control': 'private, no-store' } },
       );
+    }
+    if (body.action === 'mailTest') {
+      const recipient = String(body.recipient ?? '').trim();
+      if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+        return fail('Saisissez une adresse e-mail destinataire valide.', 400);
+      }
+      const status = mailStatus();
+      if (!status.configured) {
+        return fail(
+          `Messagerie non configurée. Variables serveur requises : ${status.missing.join(', ')}.`,
+          503,
+        );
+      }
+      try {
+        const sent = await email(
+          recipient,
+          'VETRA — Test de messagerie',
+          'Ceci est un e-mail de test envoyé depuis le module Administration → Messagerie de VETRA.',
+        );
+        return Response.json({
+          ok: true,
+          provider: sent.provider,
+          from: status.from,
+          messageId: sent.messageId ?? '',
+        });
+      } catch (cause) {
+        return fail(
+          cause instanceof Error
+            ? cause.message
+            : 'Le serveur de messagerie a refusé l’envoi.',
+          502,
+        );
+      }
     }
     if (body.action === 'userUpdate' || body.action === 'disableUser') {
       const id = String(body.id ?? body.userId);

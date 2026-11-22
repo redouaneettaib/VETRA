@@ -26,7 +26,6 @@ export default function LoginScreen({
 }) {
   const [phase, setPhase] = useState<Phase>('login');
   const [email, setEmail] = useState('');
-  const [note, setNote] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -125,17 +124,15 @@ export default function LoginScreen({
       } else if (phase === 'request') {
         const result = await submit('password/request', {
           email: normalizedEmail,
-          ...(note.trim() ? { note: note.trim() } : {}),
         });
-        setNote('');
         if (result?.mode === 'email') {
           update('reset');
           setNotice(
-            'Votre demande a été transmise. Saisissez le code à six chiffres reçu par e-mail ou communiqué par l’administrateur national.',
+            'Si un compte actif correspond à cette adresse, un code à 6 chiffres vient d’être envoyé par e-mail (valable 10 minutes). Saisissez-le ci-dessous.',
           );
         } else {
           setNotice(
-            'Votre demande de réinitialisation a été transmise à l’administrateur national. Dès qu’il vous aura communiqué un code à six chiffres (ou défini un nouveau mot de passe), vous pourrez réaccéder à votre compte.',
+            'La messagerie automatique n’est pas encore active sur ce serveur. Votre demande a été transmise à l’administrateur national pour déblocage manuel.',
           );
         }
       } else {
@@ -167,9 +164,9 @@ export default function LoginScreen({
     login: '',
     otp: 'Entrez le code de vérification à 6 chiffres envoyé à votre adresse professionnelle.',
     request:
-      'Saisissez votre e-mail professionnel pour notifier l’administrateur national. Il pourra réinitialiser votre accès ou vous communiquer un code à 6 chiffres.',
+      'Saisissez votre adresse e-mail professionnelle pour recevoir directement un code à 6 chiffres et choisir un nouveau mot de passe.',
     reset:
-      'Saisissez le code à 6 chiffres communiqué par l’administrateur national (ou reçu par e-mail) puis choisissez un nouveau mot de passe.',
+      'Saisissez le code à 6 chiffres reçu par e-mail puis définissez votre nouveau mot de passe (12 caractères minimum).',
   }[phase];
   return (
     <main className="vetra-cover">
@@ -232,19 +229,6 @@ export default function LoginScreen({
               onChange={(event) => setEmail(event.target.value)}
             />
           </label>
-          {phase === 'request' && (
-            <label className="field text-sm font-medium">
-              Téléphone ou service (facultatif)
-              <input
-                type="text"
-                maxLength={200}
-                placeholder="Ex. 06 XX XX XX XX · Service vétérinaire..."
-                value={note}
-                disabled={busy}
-                onChange={(event) => setNote(event.target.value)}
-              />
-            </label>
-          )}
           {(phase === 'otp' || phase === 'reset') && (
             <label className="field text-sm font-medium">
               Code à six chiffres
@@ -315,7 +299,7 @@ export default function LoginScreen({
               : {
                   login: 'Se connecter',
                   otp: 'Vérifier le code',
-                  request: 'Transmettre la demande à l’administrateur',
+                  request: 'Envoyer le code par e-mail',
                   reset: 'Enregistrer le mot de passe',
                 }[phase]}
           </button>
@@ -334,7 +318,7 @@ export default function LoginScreen({
               Mot de passe oublié ?
             </>
           ) : phase === 'reset' ? (
-            <>Refaire une demande à l’administrateur</>
+            <>Renvoyer un nouveau code par e-mail</>
           ) : (
             <>
               <ArrowLeft size={15} />
@@ -350,7 +334,7 @@ export default function LoginScreen({
             onClick={() => update('reset')}
           >
             <KeyRound size={15} />
-            J’ai reçu un code à 6 chiffres
+            J’ai déjà reçu un code à 6 chiffres
           </button>
         )}
         {phase === 'reset' && (
