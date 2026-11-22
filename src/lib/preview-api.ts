@@ -52,11 +52,25 @@ export async function handlePreviewRoute(
     );
   }
 
+  const resetCodes: Map<string, { code: string; expiresAt: number }> =
+    ((globalThis as Record<string, unknown>).__vetraPreviewResetCodes as Map<
+      string,
+      { code: string; expiresAt: number }
+    >) ??
+    (((globalThis as Record<string, unknown>).__vetraPreviewResetCodes =
+      new Map<string, { code: string; expiresAt: number }>()) as Map<
+      string,
+      { code: string; expiresAt: number }
+    >);
+
   if (path === 'login' && method === 'POST') {
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
     const user = previewFindUserByEmail(email);
-    if (!user || !user.active || password !== PREVIEW_PASSWORD) {
+    const matchesPassword = user?.passwordHash
+      ? password === user.passwordHash || password === PREVIEW_PASSWORD
+      : password === PREVIEW_PASSWORD;
+    if (!user || !user.active || !matchesPassword) {
       return fail(
         `Identifiants aperçu incorrects. Utilisez un compte d’aperçu (ex. direction@vetra.local) avec le mot de passe ${PREVIEW_PASSWORD}.`,
         401,
@@ -91,6 +105,38 @@ export async function handlePreviewRoute(
       });
     }
     return Response.json({ ok: true, mode: 'admin' });
+  }
+
+  if (path === 'password/reset' && method === 'POST') {
+    const email = String(body.email || '').trim().toLowerCase();
+    const code = String(body.code || '').trim();
+    const password = String(body.password || '');
+    const user = previewFindUserByEmail(email);
+    const entry = user ? resetCodes.get(user.id) : undefined;
+    if (
+      !user ||
+      !user.active ||
+      password.length < 12 ||
+      !entry ||
+      entry.code !== code ||
+      entry.expiresAt <= Date.now()
+    ) {
+      return fail('Code invalide ou mot de passe trop court');
+    }
+    user.passwordHash = password;
+    resetCodes.delete(user.id);
+    const store = getPreviewStore();
+    store.events.push({
+      id: previewNextId('evt'),
+      userId: user.id,
+      reportId: null,
+      action: 'PASSWORD_RESET_RESOLVED',
+      oldStatus: null,
+      newStatus: null,
+      reason: 'Mot de passe réinitialisé par code à usage unique (aperçu)',
+      createdAt: new Date(),
+    });
+    return Response.json({ ok: true });
   }
 
   const u = await currentUser();
@@ -270,8 +316,21 @@ export async function handlePreviewRoute(
       });
       return Response.json({ ok: true, id });
     }
-    if (body.action === 'generateResetCode') {
+    if (
+      body.action === 'userGenerateResetCode' ||
+      body.action === 'generateResetCode'
+    ) {
       const id = String(body.id ?? '').trim();
+      const target = store.users.find((x) => x.id === id);
+      if (!target) return fail('Compte introuvable', 404);
+      if (!target.active)
+        return fail(
+          'Réactivez d’abord ce compte avant de générer un code.',
+          409,
+        );
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = Date.now() + 24 * 3600_000;
+      resetCodes.set(target.id, { code, expiresAt });
       store.events.push({
         id: previewNextId('evt'),
         userId: id,
@@ -279,15 +338,40 @@ export async function handlePreviewRoute(
         action: 'PASSWORD_RESET_RESOLVED',
         oldStatus: null,
         newStatus: null,
-        reason: `Code temporaire généré en mode aperçu`,
+        reason: `Code temporaire 24h généré par ${u.firstName} ${u.name}`,
         createdAt: new Date(),
       });
-      return Response.json({
-        ok: true,
-        id,
-        code: '482915',
-        expiresAt: new Date(Date.now() + 24 * 3600_000).toISOString(),
+      return Response.json(
+        {
+          ok: true,
+          id,
+          code,
+          expiresAt: new Date(expiresAt).toISOString(),
+        },
+        { headers: { 'Cache-Control': 'private, no-store' } },
+      );
+    }
+    if (body.action === 'userResetPassword') {
+      const id = String(body.id ?? '').trim();
+      const password = String(body.password || '');
+      if (!id || password.length < 12) {
+        return fail('Le mot de passe doit contenir au moins 12 caractères.');
+      }
+      const target = store.users.find((x) => x.id === id);
+      if (!target) return fail('Compte introuvable', 404);
+      target.passwordHash = password;
+      resetCodes.delete(target.id);
+      store.events.push({
+        id: previewNextId('evt'),
+        userId: target.id,
+        reportId: null,
+        action: 'PASSWORD_RESET_RESOLVED',
+        oldStatus: null,
+        newStatus: null,
+        reason: `Mot de passe réinitialisé par ${u.firstName} ${u.name}`,
+        createdAt: new Date(),
       });
+      return Response.json({ ok: true, id: target.id, notified: false });
     }
     if (body.action === 'userUpdate' || body.action === 'disableUser') {
       const id = String(body.id ?? body.userId);
