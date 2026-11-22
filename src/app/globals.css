@@ -2440,3 +2440,293 @@ input:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   Filtres Tableau de bord & Onglets Rapports et validation
+   ========================================================================== */
+
+.vetra-dashboard-scope {
+  box-shadow: 0 1px 2px rgba(16, 42, 67, 0.04);
+}
+
+.vetra-scope-bar.is-compact {
+  min-width: min(100%, 22rem);
+}
+
+.vetra-scope-bar.is-compact .vetra-scope-field {
+  flex: 1 1 18rem;
+}
+
+.vetra-scope-reset {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 9px;
+  border: 1px solid #d5e2ee;
+  background: #ffffff;
+  color: #36506b;
+  font-size: 0.82rem;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.vetra-scope-reset:hover {
+  background: #eef5fb;
+  border-color: #b7cde0;
+  color: #102a43;
+}
+
+.vetra-scope-reset:focus-visible {
+  outline: 2px solid #11816d;
+  outline-offset: 2px;
+}
+
+.vetra-region-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding: 0.3rem;
+  background: #f6f9fc;
+  border: 1px solid #e1eaf2;
+  border-radius: 11px;
+  scrollbar-width: thin;
+}
+
+.vetra-region-tab {
+  flex: 0 0 auto;
+  padding: 0.42rem 0.78rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #486178;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.vetra-region-tab:hover {
+  background: #ffffff;
+  color: #102a43;
+}
+
+.vetra-region-tab.is-active {
+  background: #123451;
+  border-color: #123451;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(18, 52, 81, 0.22);
+}
+
+.vetra-region-tab:focus-visible {
+  outline: 2px solid #11816d;
+  outline-offset: 2px;
+}
+
+.vetra-filter-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.38rem;
+  background: #f4f8fc;
+  border: 1px solid #dce6f0;
+  border-radius: 13px;
+}
+
+.vetra-filter-tab {
+  position: relative;
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.55rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #476078;
+  font-size: 0.86rem;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.vetra-filter-tab:hover:not(.is-active) {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: #dbe5f0;
+  color: #102a43;
+}
+
+.vetra-filter-tab:focus-visible {
+  outline: 2px solid #11816d;
+  outline-offset: 2px;
+}
+
+.vetra-filter-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 7px;
+  background: #e9f0f7;
+  color: #546e87;
+  flex-shrink: 0;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.vetra-filter-tab-label {
+  line-height: 1.2;
+}
+
+.vetra-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.55rem;
+  height: 1.4rem;
+  padding: 0 0.42rem;
+  border-radius: 6px;
+  background: #e6eef6;
+  color: #36506b;
+  font-size: 0.76rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+/* États actifs harmonisés par statut */
+.vetra-filter-tab.is-active {
+  background: #ffffff;
+  color: #102a43;
+  box-shadow:
+    0 1px 3px rgba(16, 42, 67, 0.08),
+    0 6px 14px -4px rgba(16, 42, 67, 0.1);
+}
+
+.vetra-filter-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0;
+  height: 2.5px;
+  border-radius: 2px 2px 0 0;
+}
+
+.vetra-filter-tab.tone-navy.is-active {
+  border-color: #bfd0e1;
+}
+.vetra-filter-tab.tone-navy.is-active::after {
+  background: #123451;
+}
+.vetra-filter-tab.tone-navy.is-active .vetra-filter-tab-icon,
+.vetra-filter-tab.tone-navy:hover .vetra-filter-tab-icon {
+  background: #e6eef7;
+  color: #123451;
+}
+.vetra-filter-tab.tone-navy.is-active .vetra-filter-count {
+  background: #123451;
+  color: #ffffff;
+}
+
+.vetra-filter-tab.tone-teal.is-active {
+  border-color: #b7ded5;
+}
+.vetra-filter-tab.tone-teal.is-active::after {
+  background: #0f766e;
+}
+.vetra-filter-tab.tone-teal.is-active .vetra-filter-tab-icon,
+.vetra-filter-tab.tone-teal:hover .vetra-filter-tab-icon {
+  background: #e4f5f0;
+  color: #0f766e;
+}
+.vetra-filter-tab.tone-teal.is-active .vetra-filter-count {
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.vetra-filter-tab.tone-rose.is-active {
+  border-color: #f3c5cf;
+}
+.vetra-filter-tab.tone-rose.is-active::after {
+  background: #be123c;
+}
+.vetra-filter-tab.tone-rose.is-active .vetra-filter-tab-icon,
+.vetra-filter-tab.tone-rose:hover .vetra-filter-tab-icon {
+  background: #fdecef;
+  color: #be123c;
+}
+.vetra-filter-tab.tone-rose.is-active .vetra-filter-count {
+  background: #be123c;
+  color: #ffffff;
+}
+
+.vetra-filter-tab.tone-amber.is-active {
+  border-color: #f4d6a2;
+}
+.vetra-filter-tab.tone-amber.is-active::after {
+  background: #b45309;
+}
+.vetra-filter-tab.tone-amber.is-active .vetra-filter-tab-icon,
+.vetra-filter-tab.tone-amber:hover .vetra-filter-tab-icon {
+  background: #fef4e2;
+  color: #b45309;
+}
+.vetra-filter-tab.tone-amber.is-active .vetra-filter-count {
+  background: #b45309;
+  color: #ffffff;
+}
+
+.vetra-filter-tab.tone-emerald.is-active {
+  border-color: #b7e3c6;
+}
+.vetra-filter-tab.tone-emerald.is-active::after {
+  background: #15803d;
+}
+.vetra-filter-tab.tone-emerald.is-active .vetra-filter-tab-icon,
+.vetra-filter-tab.tone-emerald:hover .vetra-filter-tab-icon {
+  background: #e6f6ec;
+  color: #15803d;
+}
+.vetra-filter-tab.tone-emerald.is-active .vetra-filter-count {
+  background: #15803d;
+  color: #ffffff;
+}
+
+@media (max-width: 720px) {
+  .vetra-filter-tab {
+    flex: 1 1 calc(50% - 0.35rem);
+    justify-content: space-between;
+  }
+  .vetra-scope-reset {
+    width: 100%;
+  }
+}
+

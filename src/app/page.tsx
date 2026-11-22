@@ -253,19 +253,25 @@ export default function Home() {
     (s: Any) =>
       !validationRegionFilter || s.division.regionId === validationRegionFilter,
   );
-  const validationReports = validationServices
-    .map((s: Any) => ({
-      service: s,
-      report: reports.find(
-        (r) => r.serviceId === s.id && r.year === year && r.month === month,
-      ),
-    }))
-    .filter(({ report }: { report: Any }) => {
-      if (validationStatusFilter === 'TOUS') return true;
-      if (validationStatusFilter === 'NON INTRODUIT') return !report;
-      if (validationStatusFilter === 'SAISIS') return !!report;
-      return report?.status === validationStatusFilter;
-    });
+  const validationBase = validationServices.map((s: Any) => ({
+    service: s,
+    report: reports.find(
+      (r) => r.serviceId === s.id && r.year === year && r.month === month,
+    ),
+  }));
+  const validationCounts: Record<string, number> = {
+    TOUS: validationBase.length,
+    SAISIS: validationBase.filter(({ report }: { report: Any }) => !!report).length,
+    'NON INTRODUIT': validationBase.filter(({ report }: { report: Any }) => !report).length,
+    SOUMIS: validationBase.filter(({ report }: { report: Any }) => report?.status === 'SOUMIS').length,
+    VALIDE: validationBase.filter(({ report }: { report: Any }) => report?.status === 'VALIDE').length,
+  };
+  const validationReports = validationBase.filter(({ report }: { report: Any }) => {
+    if (validationStatusFilter === 'TOUS') return true;
+    if (validationStatusFilter === 'NON INTRODUIT') return !report;
+    if (validationStatusFilter === 'SAISIS') return !!report;
+    return report?.status === validationStatusFilter;
+  });
   const [adminRole, setAdminRole] = useState('CHEF_SERVICE');
   const [editingService, setEditingService] = useState('');
   const isFinalizedReport =
@@ -563,32 +569,76 @@ export default function Home() {
         )}
         {tab === 'dashboard' && periodReady && (
           <>
-            <div className="flex flex-wrap gap-3">
-              <select
-                aria-label="Type de service"
-                value={serviceKind}
-                onChange={(e) => setServiceKind(e.target.value)}
-              >
-                <option value="">Tous les types de service</option>
-                <option value="PROVINCIAL">Provinciaux</option>
-                <option value="FRONTALIER">Frontaliers</option>
-              </select>
-              <select
-                aria-label="Région"
-                value={regionFilter}
-                onChange={(e) => setRegionFilter(e.target.value)}
-              >
-                <option value="">Toutes les régions</option>
-                {org.regions
-                  .filter((r: Any) =>
-                    org.services.some((s: Any) => s.division.regionId === r.id),
-                  )
-                  .map((r: Any) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-              </select>
+            <div className="vetra-scope-bar vetra-dashboard-scope">
+              <label className="vetra-scope-field">
+                <span className="vetra-scope-icon is-service" aria-hidden="true">
+                  <Building2 size={16} />
+                </span>
+                <span className="vetra-scope-body">
+                  <span className="vetra-scope-label">Type de service</span>
+                  <span className="vetra-scope-select-wrap">
+                    <select
+                      aria-label="Type de service"
+                      className="vetra-scope-select"
+                      value={serviceKind}
+                      onChange={(e) => setServiceKind(e.target.value)}
+                    >
+                      <option value="">Tous les types de service</option>
+                      <option value="PROVINCIAL">Provinciaux</option>
+                      <option value="FRONTALIER">Frontaliers</option>
+                    </select>
+                    <ChevronDown size={15} className="vetra-scope-chevron" aria-hidden="true" />
+                  </span>
+                </span>
+              </label>
+
+              <span className="vetra-scope-divider" aria-hidden="true" />
+
+              <label className="vetra-scope-field">
+                <span className="vetra-scope-icon is-region" aria-hidden="true">
+                  <MapPin size={16} />
+                </span>
+                <span className="vetra-scope-body">
+                  <span className="vetra-scope-label">Direction régionale</span>
+                  <span className="vetra-scope-select-wrap">
+                    <select
+                      aria-label="Région"
+                      className="vetra-scope-select"
+                      value={regionFilter}
+                      onChange={(e) => setRegionFilter(e.target.value)}
+                    >
+                      <option value="">Toutes les régions</option>
+                      {org.regions
+                        .filter((r: Any) =>
+                          org.services.some((s: Any) => s.division.regionId === r.id),
+                        )
+                        .map((r: Any) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                    </select>
+                    <ChevronDown size={15} className="vetra-scope-chevron" aria-hidden="true" />
+                  </span>
+                </span>
+              </label>
+
+              {(serviceKind || regionFilter) && (
+                <>
+                  <span className="vetra-scope-divider" aria-hidden="true" />
+                  <button
+                    type="button"
+                    className="vetra-scope-reset"
+                    onClick={() => {
+                      setServiceKind('');
+                      setRegionFilter('');
+                    }}
+                  >
+                    <RotateCcw size={14} aria-hidden="true" />
+                    <span>Réinitialiser</span>
+                  </button>
+                </>
+              )}
             </div>
             <div className="vetra-dashboard-kpis vetra-kpis">
               {[
@@ -1408,7 +1458,7 @@ export default function Home() {
         )}
         {tab === 'rapports' && periodReady && (
           <div className="panel">
-            <div className="flex flex-wrap gap-3 items-end justify-between mb-4">
+            <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
               <div>
                 <h2 className="font-bold">Rapports et validation</h2>
                 <p className="text-sm text-slate-500 mt-1">
@@ -1416,28 +1466,43 @@ export default function Home() {
                 </p>
               </div>
               {centralScope && (
-                <label className="grid gap-1 text-sm font-semibold">
-                  Direction régionale
-                  <select
-                    aria-label="Filtrer les rapports par direction régionale"
-                    value={validationRegionFilter}
-                    onChange={(e) => setValidationRegionFilter(e.target.value)}
-                  >
-                    <option value="">Toutes les directions régionales</option>
-                    {org.regions.map((r: Any) => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </select>
-                </label>
+                <div className="vetra-scope-bar is-compact">
+                  <label className="vetra-scope-field">
+                    <span className="vetra-scope-icon is-region" aria-hidden="true">
+                      <MapPin size={16} />
+                    </span>
+                    <span className="vetra-scope-body">
+                      <span className="vetra-scope-label">Direction régionale</span>
+                      <span className="vetra-scope-select-wrap">
+                        <select
+                          aria-label="Filtrer les rapports par direction régionale"
+                          className="vetra-scope-select"
+                          value={validationRegionFilter}
+                          onChange={(e) => setValidationRegionFilter(e.target.value)}
+                        >
+                          <option value="">Toutes les directions régionales</option>
+                          {org.regions.map((r: Any) => (
+                            <option key={r.id} value={r.id}>{r.name}</option>
+                          ))}
+                        </select>
+                        <ChevronDown size={15} className="vetra-scope-chevron" aria-hidden="true" />
+                      </span>
+                    </span>
+                  </label>
+                </div>
               )}
             </div>
             {centralScope && (
-              <div className="flex gap-2 overflow-x-auto pb-1 mb-3" role="tablist" aria-label="Basculer entre les directions régionales">
+              <div
+                className="vetra-region-strip mb-3"
+                role="tablist"
+                aria-label="Basculer entre les directions régionales"
+              >
                 <button
                   type="button"
                   role="tab"
                   aria-selected={!validationRegionFilter}
-                  className={'btn whitespace-nowrap ' + (validationRegionFilter ? 'alt' : '')}
+                  className={'vetra-region-tab' + (!validationRegionFilter ? ' is-active' : '')}
                   onClick={() => setValidationRegionFilter('')}
                 >
                   Toutes les directions
@@ -1448,7 +1513,7 @@ export default function Home() {
                     type="button"
                     role="tab"
                     aria-selected={validationRegionFilter === r.id}
-                    className={'btn whitespace-nowrap ' + (validationRegionFilter === r.id ? '' : 'alt')}
+                    className={'vetra-region-tab' + (validationRegionFilter === r.id ? ' is-active' : '')}
                     onClick={() => setValidationRegionFilter(r.id)}
                   >
                     {r.name}
@@ -1456,25 +1521,33 @@ export default function Home() {
                 ))}
               </div>
             )}
-            <div className="flex flex-wrap gap-2 mb-4" role="tablist" aria-label="État des rapports">
+            <div className="vetra-filter-rail mb-4" role="tablist" aria-label="État des rapports">
               {[
-                ['TOUS', 'Tous'],
-                ['SAISIS', 'Introduits'],
-                ['NON INTRODUIT', 'Non introduits'],
-                ['SOUMIS', 'En validation'],
-                ['VALIDE', 'Validés'],
-              ].map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  aria-selected={validationStatusFilter === id}
-                  className={'btn ' + (validationStatusFilter === id ? '' : 'alt')}
-                  onClick={() => setValidationStatusFilter(id)}
-                >
-                  {label}
-                </button>
-              ))}
+                { id: 'TOUS', label: 'Tous', tone: 'navy', Icon: ClipboardList },
+                { id: 'SAISIS', label: 'Introduits', tone: 'teal', Icon: FileText },
+                { id: 'NON INTRODUIT', label: 'Non introduits', tone: 'rose', Icon: CircleDashed },
+                { id: 'SOUMIS', label: 'En validation', tone: 'amber', Icon: Clock3 },
+                { id: 'VALIDE', label: 'Validés', tone: 'emerald', Icon: BadgeCheck },
+              ].map(({ id, label, tone, Icon }) => {
+                const active = validationStatusFilter === id;
+                const count = validationCounts[id] ?? 0;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    className={`vetra-filter-tab tone-${tone}${active ? ' is-active' : ''}`}
+                    onClick={() => setValidationStatusFilter(id)}
+                  >
+                    <span className="vetra-filter-tab-icon" aria-hidden="true">
+                      <Icon size={15} />
+                    </span>
+                    <span className="vetra-filter-tab-label">{label}</span>
+                    <span className="vetra-filter-count">{count}</span>
+                  </button>
+                );
+              })}
             </div>
             {validationReports.length === 0 && (
               <p className="text-sm text-slate-500 py-3">
