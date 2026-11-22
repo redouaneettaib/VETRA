@@ -12,7 +12,7 @@ import { CANEVAS, RUBRICS } from '@/lib/canevas';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import {
-  buildAdminResetNoticeHtml,
+  buildAdminResetPasswordEmailHtml,
   buildOtpEmailHtml,
   email,
   mailConfigured,
@@ -41,6 +41,26 @@ const obj = (v: unknown): Input =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Input) : {};
 const isAdmin = (role: string) => role === 'ADMIN_NATIONAL';
 const recipientAddress = z.string().trim().max(254).email();
+function generateStrongPassword(length = 16) {
+  const groups = [
+    'ABCDEFGHJKLMNPQRSTUVWXYZ',
+    'abcdefghijkmnopqrstuvwxyz',
+    '23456789',
+    '!@#$%&*-_',
+  ];
+  const all = groups.join('');
+  const chars = groups.map(
+    (group) => group[crypto.randomInt(0, group.length)],
+  );
+  for (let i = groups.length; i < length; i++) {
+    chars.push(all[crypto.randomInt(0, all.length)]);
+  }
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(0, i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
 const findUserByEmail = (address: string) => {
   const normalized = address.trim();
   if (!normalized) return Promise.resolve(null);
@@ -614,10 +634,12 @@ async function handle(
       result = { ok: true };
     } else if (body.action === 'userResetPassword') {
       const id = String(body.id ?? '').trim();
-      const password = body.password;
+      const rawPassword =
+        typeof body.password === 'string' ? body.password : '';
+      const autoGenerate = body.generate === true || rawPassword.length === 0;
+      const password = autoGenerate ? generateStrongPassword(16) : rawPassword;
       if (
         !id ||
-        typeof password !== 'string' ||
         password.length < 12 ||
         Buffer.byteLength(password, 'utf8') > 72
       )
@@ -626,7 +648,13 @@ async function handle(
         );
       const target = await db.user.findUnique({
         where: { id },
-        select: { id: true, email: true, active: true },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          name: true,
+          active: true,
+        },
       });
       if (!target) return fail('Compte introuvable', 404);
       const passwordHash = await bcrypt.hash(password, 12);
@@ -654,31 +682,39 @@ async function handle(
           },
         }),
       ]);
-      let notified = false;
-      let notifyError = '';
-      if (body.notifyByEmail === true && mailConfigured()) {
+      const isMailConfigured = mailConfigured();
+      let emailed = false;
+      let emailError = '';
+      if (body.sendEmail !== false && isMailConfigured) {
+        const fullName = `${target.firstName} ${target.name}`.trim();
         try {
           await email(
             target.email,
-            'VETRA — Mot de passe réinitialisé',
-            'Bonjour,\n\nL’administrateur national a réinitialisé le mot de passe de votre compte VETRA. Par mesure de sécurité, le nouveau mot de passe temporaire n’est pas transmis par e-mail. Rapprochez-vous de votre administrateur pour le récupérer puis modifiez-le dès votre connexion.\n\nONSSA / DPA — VETRA',
+            'VETRA — Votre nouveau mot de passe temporaire',
+            `Bonjour ${fullName},\n\nL’administrateur national a réinitialisé l’accès à votre compte VETRA.\nVotre mot de passe temporaire est : ${password}\n\nModifiez-le dès votre connexion depuis le menu « Modifier mon mot de passe ».\n\nONSSA / DPA — VETRA`,
             undefined,
-            buildAdminResetNoticeHtml(),
+            buildAdminResetPasswordEmailHtml(password, fullName),
           );
-          notified = true;
+          emailed = true;
         } catch (cause) {
-          notifyError =
+          emailError =
             cause instanceof Error
               ? cause.message
-              : 'Notification par e-mail non confirmée.';
+              : 'Envoi par e-mail non confirmé.';
         }
       }
-      return Response.json({
-        ok: true,
-        id: target.id,
-        notified,
-        ...(notifyError ? { notifyError } : {}),
-      });
+      return Response.json(
+        {
+          ok: true,
+          id: target.id,
+          password,
+          emailed,
+          notified: emailed,
+          mailConfigured: isMailConfigured,
+          ...(emailError ? { emailError, notifyError: emailError } : {}),
+        },
+        { headers: { 'Cache-Control': 'private, no-store' } },
+      );
     } else if (body.action === 'userGenerateResetCode') {
       const id = String(body.id ?? '').trim();
       if (!id) return fail('Compte introuvable', 404);
@@ -720,12 +756,35 @@ async function handle(
           },
         }),
       ]);
+      const isMailConfigured = mailConfigured();
+      let emailed = false;
+      let emailError = '';
+      if (body.sendEmail !== false && isMailConfigured) {
+        try {
+          await email(
+            target.email,
+            'VETRA — Code de réinitialisation de votre mot de passe',
+            `Votre code de réinitialisation VETRA est : ${code}\nValable 24 heures (usage unique, 5 tentatives maximum).\n\nSur l’écran de connexion, cliquez sur « Mot de passe oublié ? » puis « J’ai reçu un code à 6 chiffres » pour choisir votre nouveau mot de passe.\n\nONSSA / DPA — VETRA`,
+            undefined,
+            buildOtpEmailHtml('RESET', code, '24 heures'),
+          );
+          emailed = true;
+        } catch (cause) {
+          emailError =
+            cause instanceof Error
+              ? cause.message
+              : 'Envoi par e-mail non confirmé.';
+        }
+      }
       return Response.json(
         {
           ok: true,
           id: target.id,
           code,
           expiresAt: expiresAt.toISOString(),
+          emailed,
+          mailConfigured: isMailConfigured,
+          ...(emailError ? { emailError } : {}),
         },
         { headers: { 'Cache-Control': 'private, no-store' } },
       );

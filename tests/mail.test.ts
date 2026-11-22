@@ -84,3 +84,19 @@ it('détecte la configuration incomplète et les refus détaillés du fournisseu
     email('user@example.invalid', 'OTP', 'Votre code'),
   ).rejects.toThrow(/HTTP 403.*testing emails/);
 });
+
+it('génère les gabarits e-mail de code 24h et de mot de passe temporaire avec échappement HTML', async () => {
+  const { buildAdminResetPasswordEmailHtml } = await import('../src/lib/mail');
+  const otpHtml = buildOtpEmailHtml('RESET', '654321', '24 heures');
+  expect(otpHtml).toContain('654321');
+  expect(otpHtml).toContain('24 heures');
+
+  const pwdHtml = buildAdminResetPasswordEmailHtml(
+    'Abc<&>"123456!',
+    'Salma <Admin>',
+  );
+  expect(pwdHtml).toContain('Abc&lt;&amp;&gt;&quot;123456!');
+  expect(pwdHtml).toContain('Bonjour Salma &lt;Admin&gt;,');
+  expect(pwdHtml).not.toContain('Abc<&>"123456!');
+});
+

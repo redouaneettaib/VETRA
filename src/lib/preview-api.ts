@@ -1,4 +1,5 @@
 import type { Kind, Role, Status } from '@prisma/client';
+import crypto from 'node:crypto';
 import { NextRequest } from 'next/server';
 import { CANEVAS, RUBRICS } from './canevas';
 import {
@@ -328,7 +329,7 @@ export async function handlePreviewRoute(
           'Réactivez d’abord ce compte avant de générer un code.',
           409,
         );
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const code = String(crypto.randomInt(100000, 1000000));
       const expiresAt = Date.now() + 24 * 3600_000;
       resetCodes.set(target.id, { code, expiresAt });
       store.events.push({
@@ -347,13 +348,33 @@ export async function handlePreviewRoute(
           id,
           code,
           expiresAt: new Date(expiresAt).toISOString(),
+          emailed: false,
+          mailConfigured: mailStatus().configured,
         },
         { headers: { 'Cache-Control': 'private, no-store' } },
       );
     }
     if (body.action === 'userResetPassword') {
       const id = String(body.id ?? '').trim();
-      const password = String(body.password || '');
+      const rawPassword =
+        typeof body.password === 'string' ? body.password : '';
+      const autoGenerate = body.generate === true || rawPassword.length === 0;
+      const groups = [
+        'ABCDEFGHJKLMNPQRSTUVWXYZ',
+        'abcdefghijkmnopqrstuvwxyz',
+        '23456789',
+        '!@#$%&*-_',
+      ];
+      const all = groups.join('');
+      const chars = groups.map((g) => g[crypto.randomInt(0, g.length)]);
+      for (let i = groups.length; i < 16; i++) {
+        chars.push(all[crypto.randomInt(0, all.length)]);
+      }
+      for (let i = chars.length - 1; i > 0; i--) {
+        const j = crypto.randomInt(0, i + 1);
+        [chars[i], chars[j]] = [chars[j], chars[i]];
+      }
+      const password = autoGenerate ? chars.join('') : rawPassword;
       if (!id || password.length < 12) {
         return fail('Le mot de passe doit contenir au moins 12 caractères.');
       }
@@ -371,7 +392,17 @@ export async function handlePreviewRoute(
         reason: `Mot de passe réinitialisé par ${u.firstName} ${u.name}`,
         createdAt: new Date(),
       });
-      return Response.json({ ok: true, id: target.id, notified: false });
+      return Response.json(
+        {
+          ok: true,
+          id: target.id,
+          password,
+          emailed: false,
+          notified: false,
+          mailConfigured: mailStatus().configured,
+        },
+        { headers: { 'Cache-Control': 'private, no-store' } },
+      );
     }
     if (body.action === 'userUpdate' || body.action === 'disableUser') {
       const id = String(body.id ?? body.userId);

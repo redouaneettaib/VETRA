@@ -64,15 +64,29 @@ export function mailStatus(): MailStatus {
   };
 }
 
-export function buildOtpEmailHtml(purpose: 'LOGIN' | 'RESET', code: string) {
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export function buildOtpEmailHtml(
+  purpose: 'LOGIN' | 'RESET',
+  code: string,
+  expiryLabel = '10 minutes',
+) {
   const safeCode = code.replace(/\D/g, '').slice(0, 6);
+  const safeExpiry = escapeHtml(expiryLabel);
   const title =
     purpose === 'RESET'
       ? 'Réinitialisation de votre mot de passe'
       : 'Code de vérification de connexion';
   const intro =
     purpose === 'RESET'
-      ? 'Vous avez demandé la réinitialisation du mot de passe de votre compte VETRA. Saisissez le code ci-dessous sur la page de connexion :'
+      ? 'Un code à usage unique a été généré pour réinitialiser le mot de passe de votre compte VETRA. Cliquez sur « Mot de passe oublié ? → J’ai reçu un code à 6 chiffres » puis saisissez le code ci-dessous :'
       : 'Pour confirmer votre connexion à la plateforme VETRA, saisissez le code à usage unique ci-dessous :';
 
   return `<!DOCTYPE html>
@@ -92,8 +106,44 @@ export function buildOtpEmailHtml(purpose: 'LOGIN' | 'RESET', code: string) {
           <div style="text-align:center;margin:20px 0;padding:16px;background:#f0f9f7;border:1px solid #b7e1d8;border-radius:10px;">
             <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:30px;font-weight:700;letter-spacing:0.28em;color:#11816d;">${safeCode}</span>
           </div>
-          <p style="margin:0 0 8px;font-size:13px;color:#475569;">Ce code est valable <strong>10 minutes</strong> et utilisable une seule fois (5 tentatives maximum).</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#475569;">Ce code est valable <strong>${safeExpiry}</strong> et utilisable une seule fois (5 tentatives maximum).</p>
           <p style="margin:0;font-size:12px;color:#64748b;">Si vous n’êtes pas à l’origine de cette demande, ignorez simplement ce message.</p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+export function buildAdminResetPasswordEmailHtml(
+  temporaryPassword: string,
+  recipientName?: string,
+) {
+  const safePassword = escapeHtml(temporaryPassword);
+  const greeting = recipientName?.trim()
+    ? `Bonjour ${escapeHtml(recipientName.trim())},`
+    : 'Bonjour,';
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+  <body style="margin:0;padding:24px;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#123451;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #dce5ed;border-radius:14px;overflow:hidden;">
+      <tr>
+        <td style="background:#123451;padding:20px 24px;color:#ffffff;">
+          <div style="font-size:18px;font-weight:700;letter-spacing:0.04em;">VETRA</div>
+          <div style="font-size:12px;color:#cbd5e1;margin-top:4px;">ONSSA – DPA · Plateforme de reporting des services vétérinaires</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:24px;">
+          <h1 style="margin:0 0 12px;font-size:18px;color:#123451;">Votre nouveau mot de passe temporaire</h1>
+          <p style="margin:0 0 14px;font-size:14px;line-height:1.55;color:#334155;">${greeting}</p>
+          <p style="margin:0 0 16px;font-size:14px;line-height:1.55;color:#334155;">L’administrateur national a réinitialisé l’accès à votre compte VETRA. Vous pouvez vous connecter immédiatement avec le mot de passe temporaire ci-dessous :</p>
+          <div style="text-align:center;margin:20px 0;padding:16px;background:#f0f9f7;border:1px solid #b7e1d8;border-radius:10px;">
+            <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:20px;font-weight:700;letter-spacing:0.06em;color:#11816d;word-break:break-all;">${safePassword}</span>
+          </div>
+          <p style="margin:0 0 8px;font-size:13px;line-height:1.55;color:#475569;">Par mesure de sécurité, modifiez ce mot de passe dès votre première connexion depuis le menu <strong>Modifier mon mot de passe</strong>.</p>
+          <p style="margin:0;font-size:12px;color:#64748b;">Si vous n’êtes pas à l’origine de cette demande, contactez immédiatement l’administrateur national.</p>
         </td>
       </tr>
     </table>
