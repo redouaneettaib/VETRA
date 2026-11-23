@@ -100,3 +100,73 @@ it('génère les gabarits e-mail de code 24h et de mot de passe temporaire avec 
   expect(pwdHtml).not.toContain('Abc<&>"123456!');
 });
 
+it('bascule sur SMTP si RESEND_FROM est vide mais SMTP est configuré', () => {
+  vi.stubEnv('RESEND_API_KEY', 'test-key');
+  vi.stubEnv('RESEND_FROM', '');
+  vi.stubEnv('SMTP_HOST', 'smtp.gmail.com');
+  vi.stubEnv('SMTP_PORT', '465');
+  vi.stubEnv('SMTP_FROM', 'VETRA <test@gmail.com>');
+  vi.stubEnv('SMTP_USER', 'test@gmail.com');
+  expect(mailConfigured()).toBe(true);
+  expect(mailStatus()).toMatchObject({
+    configured: true,
+    provider: 'smtp',
+    host: 'smtp.gmail.com',
+    port: 465,
+    authenticated: true,
+  });
+  vi.stubEnv('SMTP_FROM', '');
+  expect(mailConfigured()).toBe(true);
+  expect(mailStatus()).toMatchObject({
+    configured: true,
+    provider: 'smtp',
+    from: 'test@gmail.com',
+  });
+});
+
+it('envoie un e-mail via Brevo HTTPS avec pièce jointe PDF en base64', async () => {
+  vi.stubEnv('BREVO_API_KEY', 'xkeysib-test');
+  vi.stubEnv('BREVO_FROM', 'VETRA ONSSA <vetra@gmail.com>');
+  vi.stubEnv('RESEND_API_KEY', '');
+  vi.stubEnv('SMTP_HOST', '');
+  const fetchMock = vi.fn(async (_url: string, _options: RequestInit) =>
+    Response.json({ messageId: '<brevo-123@brevo.com>' }),
+  );
+  vi.stubGlobal('fetch', fetchMock);
+  expect(mailConfigured()).toBe(true);
+  expect(mailStatus()).toMatchObject({
+    configured: true,
+    provider: 'brevo',
+    from: 'VETRA ONSSA <vetra@gmail.com>',
+  });
+  const res = await email(
+    'agent@onssa.gov.ma',
+    'VETRA — Code',
+    'Votre code : 654321',
+    { filename: 'rapport.pdf', content: Buffer.from('%PDF') },
+    buildOtpEmailHtml('RESET', '654321', '10 minutes'),
+  );
+  expect(res).toEqual({
+    provider: 'brevo',
+    messageId: '<brevo-123@brevo.com>',
+  });
+  expect(fetchMock.mock.calls[0][0]).toBe(
+    'https://api.brevo.com/v3/smtp/email',
+  );
+  expect(fetchMock.mock.calls[0][1].headers).toHaveProperty(
+    'api-key',
+    'xkeysib-test',
+  );
+  expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toMatchObject({
+    sender: { name: 'VETRA ONSSA', email: 'vetra@gmail.com' },
+    to: [{ email: 'agent@onssa.gov.ma' }],
+    subject: 'VETRA — Code',
+    textContent: 'Votre code : 654321',
+    attachment: [
+      { name: 'rapport.pdf', content: Buffer.from('%PDF').toString('base64') },
+    ],
+  });
+});
+
+
+

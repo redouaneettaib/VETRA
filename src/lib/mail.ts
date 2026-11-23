@@ -1,17 +1,40 @@
 import nodemailer from 'nodemailer';
 
+const brevoApiKey = () => process.env.BREVO_API_KEY?.trim();
+const brevoFrom = () => process.env.BREVO_FROM?.trim();
 const apiKey = () => process.env.RESEND_API_KEY?.trim();
 const resendFrom = () => process.env.RESEND_FROM?.trim();
+const smtpHostValue = () =>
+  (process.env.SMTP_HOST?.trim() || '').replace(/^smtps?:\/\//i, '');
+const smtpUserValue = () => process.env.SMTP_USER?.trim() || '';
+const smtpSender = () => {
+  const explicit = process.env.SMTP_FROM?.trim();
+  if (explicit) return explicit;
+  const user = smtpUserValue();
+  return user.includes('@') ? user : '';
+};
+
+function parseFromAddress(raw: string): { name?: string; email: string } {
+  const trimmed = raw.trim();
+  const match = /^(.*?)<\s*([^<>\s]+@[^<>\s]+)\s*>$/.exec(trimmed);
+  if (match) {
+    const name = match[1].trim().replace(/^["']|["']$/g, '');
+    return { ...(name ? { name } : {}), email: match[2].trim() };
+  }
+  return { email: trimmed };
+}
 
 export function mailConfigured() {
-  return apiKey()
-    ? Boolean(resendFrom())
-    : Boolean(process.env.SMTP_HOST?.trim() && process.env.SMTP_FROM?.trim());
+  return Boolean(
+    (brevoApiKey() && brevoFrom()) ||
+      (apiKey() && resendFrom()) ||
+      (smtpHostValue() && smtpSender()),
+  );
 }
 
 export interface MailStatus {
   configured: boolean;
-  provider: 'resend' | 'smtp' | 'none';
+  provider: 'brevo' | 'resend' | 'smtp' | 'none';
   from: string;
   host?: string;
   port?: number;
@@ -21,13 +44,24 @@ export interface MailStatus {
 }
 
 export function mailStatus(): MailStatus {
+  const hasBrevoKey = Boolean(brevoApiKey());
+  const fromBrevo = brevoFrom() || '';
   const hasResendKey = Boolean(apiKey());
   const fromResend = resendFrom() || '';
-  const smtpHost = process.env.SMTP_HOST?.trim() || '';
-  const smtpFrom = process.env.SMTP_FROM?.trim() || '';
+  const smtpHost = smtpHostValue();
+  const smtpFrom = smtpSender();
   const smtpPort = Number(process.env.SMTP_PORT || 587);
-  const smtpAuth = Boolean(process.env.SMTP_USER?.trim());
+  const smtpAuth = Boolean(smtpUserValue());
 
+  if (hasBrevoKey && fromBrevo) {
+    return {
+      configured: true,
+      provider: 'brevo',
+      from: fromBrevo,
+      sandboxSender: false,
+      missing: [],
+    };
+  }
   if (hasResendKey && fromResend) {
     return {
       configured: true,
@@ -50,10 +84,13 @@ export function mailStatus(): MailStatus {
     };
   }
   const missing: string[] = [];
-  if (hasResendKey && !fromResend) missing.push('RESEND_FROM');
-  else if (smtpHost && !smtpFrom) missing.push('SMTP_FROM');
-  else if (!hasResendKey && !smtpHost) {
-    missing.push('RESEND_API_KEY + RESEND_FROM (ou SMTP_HOST + SMTP_FROM)');
+  if (hasBrevoKey && !fromBrevo) missing.push('BREVO_FROM');
+  else if (hasResendKey && !fromResend) missing.push('RESEND_FROM');
+  else if (smtpHost && !smtpFrom) missing.push('SMTP_FROM (ou SMTP_USER)');
+  else if (!hasBrevoKey && !hasResendKey && !smtpHost) {
+    missing.push(
+      'BREVO_API_KEY + BREVO_FROM (ou RESEND_API_KEY + RESEND_FROM, ou SMTP_HOST + SMTP_FROM)',
+    );
   }
   return {
     configured: false,
@@ -174,67 +211,148 @@ export function buildAdminResetNoticeHtml() {
 </html>`;
 }
 
+function normalizeSmtpPassword(host: string, rawPass: string) {
+  const trimmed = rawPass.trim();
+  if (
+    /gmail\.com$/i.test(host) &&
+    /^[a-zA-Z]{4}(?: [a-zA-Z]{4}){3}$/.test(trimmed)
+  ) {
+    return trimmed.replace(/ /g, '');
+  }
+  return rawPass;
+}
+
 export async function email(
   to: string,
   subject: string,
   text: string,
   attachment?: { filename: string; content: Buffer },
   html?: string,
-): Promise<{ provider: 'resend' | 'smtp'; messageId?: string }> {
+): Promise<{ provider: 'brevo' | 'resend' | 'smtp'; messageId?: string }> {
   if (!mailConfigured()) throw Error('Envoi d’e-mails non configuré');
+  const bKey = brevoApiKey();
+  const bFrom = brevoFrom();
   const key = apiKey();
-  if (key) {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
-      signal: AbortSignal.timeout(12_000),
-      body: JSON.stringify({
-        from: resendFrom(),
-        to: [to],
-        subject,
-        text,
-        ...(html ? { html } : {}),
-        attachments: attachment
-          ? [
-              {
-                filename: attachment.filename,
-                content: attachment.content.toString('base64'),
-              },
-            ]
-          : undefined,
-      }),
-    });
-    if (!response.ok) {
-      let detail = '';
-      try {
-        const body = (await response.json()) as {
-          message?: string;
-          error?: string;
-        };
-        detail = body?.message || body?.error || '';
-      } catch {
-        // Ignore unparseable error body
+  const fromResend = resendFrom();
+  const hasResend = Boolean(key && fromResend);
+  const hasSmtp = Boolean(smtpHostValue() && smtpSender());
+
+  if (bKey && bFrom) {
+    try {
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': bKey,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(12_000),
+        body: JSON.stringify({
+          sender: parseFromAddress(bFrom),
+          to: [{ email: to }],
+          subject,
+          textContent: text,
+          ...(html ? { htmlContent: html } : {}),
+          ...(attachment
+            ? {
+                attachment: [
+                  {
+                    name: attachment.filename,
+                    content: attachment.content.toString('base64'),
+                  },
+                ],
+              }
+            : {}),
+        }),
+      });
+      if (!response.ok) {
+        let detail = '';
+        try {
+          const body = (await response.json()) as {
+            message?: string;
+            code?: string;
+          };
+          detail = body?.message || body?.code || '';
+        } catch {
+          // Ignore unparseable error body
+        }
+        throw Error(
+          `Envoi HTTPS refusé par Brevo (HTTP ${response.status})${detail ? ` : ${detail}` : ''}`,
+        );
       }
-      throw Error(
-        `Envoi HTTPS refusé par Resend (HTTP ${response.status})${detail ? ` : ${detail}` : ''}`,
+      const result = (await response.json()) as { messageId?: string };
+      return { provider: 'brevo', messageId: result.messageId };
+    } catch (brevoError) {
+      if (!hasResend && !hasSmtp) throw brevoError;
+      console.error(
+        'VETRA Brevo failed, falling back to next provider:',
+        brevoError instanceof Error ? brevoError.message : 'unknown error',
       );
     }
-    const result = (await response.json()) as { id?: string };
-    if (!result.id) throw Error('Envoi non confirmé par Resend');
-    return { provider: 'resend', messageId: result.id };
   }
+
+  if (hasResend && key && fromResend) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(12_000),
+        body: JSON.stringify({
+          from: fromResend,
+          to: [to],
+          subject,
+          text,
+          ...(html ? { html } : {}),
+          attachments: attachment
+            ? [
+                {
+                  filename: attachment.filename,
+                  content: attachment.content.toString('base64'),
+                },
+              ]
+            : undefined,
+        }),
+      });
+      if (!response.ok) {
+        let detail = '';
+        try {
+          const body = (await response.json()) as {
+            message?: string;
+            error?: string;
+          };
+          detail = body?.message || body?.error || '';
+        } catch {
+          // Ignore unparseable error body
+        }
+        throw Error(
+          `Envoi HTTPS refusé par Resend (HTTP ${response.status})${detail ? ` : ${detail}` : ''}`,
+        );
+      }
+      const result = (await response.json()) as { id?: string };
+      if (!result.id) throw Error('Envoi non confirmé par Resend');
+      return { provider: 'resend', messageId: result.id };
+    } catch (resendError) {
+      if (!hasSmtp) throw resendError;
+      console.error(
+        'VETRA Resend failed, falling back to SMTP:',
+        resendError instanceof Error ? resendError.message : 'unknown error',
+      );
+    }
+  }
+  const smtpHost = smtpHostValue();
+  const smtpUser = smtpUserValue();
   const port = Number(process.env.SMTP_PORT || 587);
   const transport = nodemailer.createTransport({
-    host: process.env.SMTP_HOST?.trim(),
+    host: smtpHost,
     port,
     secure: port === 465,
-    auth: process.env.SMTP_USER?.trim()
+    auth: smtpUser
       ? {
-          user: process.env.SMTP_USER.trim(),
-          pass: process.env.SMTP_PASS || '',
+          user: smtpUser,
+          pass: normalizeSmtpPassword(smtpHost, process.env.SMTP_PASS || ''),
         }
       : undefined,
     connectionTimeout: 10_000,
@@ -242,7 +360,7 @@ export async function email(
     socketTimeout: 20_000,
   });
   const sent = await transport.sendMail({
-    from: process.env.SMTP_FROM?.trim(),
+    from: smtpSender(),
     to,
     subject,
     text,

@@ -5,7 +5,7 @@ import { AlertTriangle, CheckCircle2, Mail, RefreshCw, Send } from 'lucide-react
 
 interface MailStatusResponse {
   configured: boolean;
-  provider: 'resend' | 'smtp' | 'none';
+  provider: 'brevo' | 'resend' | 'smtp' | 'none';
   from: string;
   host?: string;
   port?: number;
@@ -64,9 +64,15 @@ export default function AdminMailDiagnostics({
         action: 'mailTest',
         recipient: recipient.trim(),
       });
+      const providerText =
+        result.provider === 'brevo'
+          ? 'Brevo HTTPS'
+          : result.provider === 'resend'
+            ? 'Resend HTTPS'
+            : 'SMTP';
       setTestResult({
         ok: true,
-        message: `E-mail de test accepté par ${result.provider === 'resend' ? 'Resend HTTPS' : 'SMTP'} depuis ${result.from}${result.messageId ? ` (réf. ${result.messageId})` : ''}. Vérifiez la boîte de réception et les indésirables.`,
+        message: `E-mail de test accepté par ${providerText} depuis ${result.from}${result.messageId ? ` (réf. ${result.messageId})` : ''}. Vérifiez la boîte de réception et les indésirables.`,
       });
     } catch (cause) {
       setTestResult({
@@ -83,11 +89,13 @@ export default function AdminMailDiagnostics({
 
   const providerLabel = !status
     ? '—'
-    : status.provider === 'resend'
-      ? 'Resend (HTTPS)'
-      : status.provider === 'smtp'
-        ? 'SMTP'
-        : 'Non configuré';
+    : status.provider === 'brevo'
+      ? 'Brevo (HTTPS)'
+      : status.provider === 'resend'
+        ? 'Resend (HTTPS)'
+        : status.provider === 'smtp'
+          ? 'SMTP'
+          : 'Non configuré';
 
   return (
     <div className="panel space-y-5">
@@ -167,9 +175,11 @@ export default function AdminMailDiagnostics({
               <span className="mt-1 block text-slate-700 tabular-nums">
                 {status.provider === 'smtp'
                   ? `${status.host} · port ${status.port} · ${status.authenticated ? 'authentifié' : 'sans auth'}`
-                  : status.provider === 'resend'
-                    ? 'API HTTPS api.resend.com'
-                    : status.missing.join(', ')}
+                  : status.provider === 'brevo'
+                    ? 'API HTTPS api.brevo.com'
+                    : status.provider === 'resend'
+                      ? 'API HTTPS api.resend.com'
+                      : status.missing.join(', ')}
               </span>
             </div>
           </div>
@@ -198,7 +208,11 @@ export default function AdminMailDiagnostics({
                 hébergeur (Railway / Vercel) :
               </p>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Option Resend (recommandée sur Railway) :{' '}
+                Option Brevo HTTPS (gratuit 300 e-mails/j, fonctionne sur Railway
+                sans domaine DNS) : <code>BREVO_API_KEY</code> et{' '}
+                <code>BREVO_FROM</code>.
+                <br />
+                Option Resend HTTPS (avec domaine vérifié) :{' '}
                 <code>RESEND_API_KEY</code> et <code>RESEND_FROM</code>.
                 <br />
                 Option SMTP : <code>SMTP_HOST</code>, <code>SMTP_FROM</code>,{' '}
