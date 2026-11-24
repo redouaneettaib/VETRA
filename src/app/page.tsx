@@ -74,7 +74,7 @@ function Brand() {
         />
       </span>
       <img
-        src="/VETRA_officiel.jpg"
+        src="/VETRA_officiel.jpg?v=2"
         alt="VETRA"
         referrerPolicy="no-referrer"
       />
