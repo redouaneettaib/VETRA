@@ -6,9 +6,13 @@ import { Paperclip } from 'lucide-react';
 export default function ReportEmail({
   endpoint,
   title,
+  disabled = false,
+  ariaLabel,
 }: {
   endpoint: string;
   title: string;
+  disabled?: boolean;
+  ariaLabel?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const pending = useRef(false);
@@ -42,14 +46,18 @@ export default function ReportEmail({
     }
   }
 
+  const label = ariaLabel || 'Envoyer par e-mail (PDF joint)';
+
   return (
     <>
       <button
         type="button"
         className="vetra-action-icon vetra-action-email"
-        title={sent ? `Envoyé à ${sent}` : 'Envoyer par e-mail (PDF joint)'}
-        aria-label="Envoyer par e-mail (PDF joint)"
+        disabled={disabled}
+        title={disabled ? 'Aucun rapport saisi à envoyer' : sent ? `Envoyé à ${sent}` : label}
+        aria-label={label}
         onClick={() => {
+          if (disabled) return;
           setRecipient('');
           setSent('');
           setError('');

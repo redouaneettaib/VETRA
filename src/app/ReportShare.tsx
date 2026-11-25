@@ -6,16 +6,23 @@ import { Download, ExternalLink } from 'lucide-react';
 export default function ReportShare({
   url,
   title,
+  disabled = false,
+  ariaLabel,
 }: {
   url: string;
   title: string;
+  disabled?: boolean;
+  ariaLabel?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  const [file, setFile] = useState<File | null>(null);
+  const [cached, setCached] = useState<{ url: string; file: File } | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const message = `VETRA · ONSSA / DPA\n${title}`;
+  const currentFile = cached?.url === url ? cached.file : null;
 
   function openFallback(errMsg = '') {
     setError(errMsg);
@@ -23,6 +30,7 @@ export default function ReportShare({
   }
 
   async function prepare() {
+    if (disabled) return;
     if (!navigator.share || !navigator.canShare) {
       openFallback();
       return;
@@ -40,7 +48,7 @@ export default function ReportShare({
         type: 'application/pdf',
       });
       if (navigator.canShare({ files: [document] })) {
-        setFile(document);
+        setCached({ url, file: document });
         try {
           await navigator.share({ files: [document], title, text: message });
         } catch (shareErr) {
@@ -61,9 +69,9 @@ export default function ReportShare({
   }
 
   async function share() {
-    if (!file) return;
+    if (disabled || !currentFile) return;
     try {
-      await navigator.share({ files: [file], title, text: message });
+      await navigator.share({ files: [currentFile], title, text: message });
     } catch (cause) {
       if (!(cause instanceof Error) || cause.name !== 'AbortError') {
         openFallback();
@@ -73,17 +81,17 @@ export default function ReportShare({
 
   const label = busy
     ? 'Préparation du partage WhatsApp…'
-    : 'Partager le PDF via WhatsApp';
+    : ariaLabel || 'Partager le PDF via WhatsApp';
 
   return (
     <>
       <button
         type="button"
         className="vetra-action-icon vetra-action-whatsapp"
-        title={label}
+        title={disabled ? 'Aucun rapport saisi à partager' : label}
         aria-label={label}
-        disabled={busy}
-        onClick={file ? share : prepare}
+        disabled={disabled || busy}
+        onClick={currentFile ? share : prepare}
       >
         <img
           src="/icons/whatsapp.png"
@@ -104,7 +112,7 @@ export default function ReportShare({
             Partager via WhatsApp
           </h2>
           <p className="text-sm text-slate-600">
-            Téléchargez le PDF puis joignez-le à votre conversation WhatsApp.
+            <strong className="text-navy">{title}</strong> — Téléchargez le PDF puis joignez-le à votre conversation WhatsApp.
           </p>
           {error && (
             <p role="alert" className="text-sm text-red-700">

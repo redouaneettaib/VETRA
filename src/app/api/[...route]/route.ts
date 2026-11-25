@@ -31,7 +31,12 @@ import {
 } from '@/lib/forms';
 import { analyze, parseFilters } from '@/lib/analytics';
 import { exportAnalysis } from '@/lib/reporting-export';
-import { exportReport } from '@/lib/exports';
+import { exportConsolidatedReport, exportReport } from '@/lib/exports';
+import {
+  describeConsolidatedScope,
+  filterReportsForConsolidation,
+  parseConsolidatedParams,
+} from '@/lib/consolidated-export';
 import { ensureDcspDemoReportsNormalized } from '@/lib/demo-dcsp';
 import { isPreviewMode } from '@/lib/preview-store';
 import { handlePreviewRoute } from '@/lib/preview-api';
@@ -1289,7 +1294,148 @@ async function handle(
     (reportEmail && path === 'export/email')
   ) {
     await ensureDcspDemoReportsNormalized(db);
-    const id = req.nextUrl.searchParams.get('id');
+    const params = req.nextUrl.searchParams;
+    if (params.get('scope') === 'total') {
+      if (u.role === 'CHEF_SERVICE') {
+        return fail(
+          'La consolidation multi-services est réservée aux directions et divisions.',
+          403,
+        );
+      }
+      let parsed;
+      try {
+        parsed = parseConsolidatedParams(params);
+      } catch (error) {
+        return fail(
+          error instanceof Error ? error.message : 'Paramètres invalides',
+        );
+      }
+      const type = params.get('type');
+      if (!recipient && type !== 'pdf' && type !== 'xlsx') {
+        return fail('Format inconnu');
+      }
+      const scope = await allowedServices(u);
+      const scopedServices = await db.service.findMany({
+        where: { id: { in: scope } },
+        select: {
+          id: true,
+          name: true,
+          kind: true,
+          division: {
+            select: {
+              id: true,
+              name: true,
+              region: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+      let eligibleServices = scopedServices;
+      if (parsed.regionId) {
+        const isCentral =
+          u.role === 'ADMIN_NATIONAL' || u.role === 'DIRECTION_CENTRALE';
+        if (
+          !isCentral &&
+          !scopedServices.every(
+            (service) => service.division.region.id === parsed.regionId,
+          )
+        ) {
+          return fail('Périmètre non autorisé', 403);
+        }
+        eligibleServices = scopedServices.filter(
+          (service) => service.division.region.id === parsed.regionId,
+        );
+        if (!eligibleServices.length) {
+          return fail('Périmètre non autorisé', 403);
+        }
+      }
+      if (!eligibleServices.length) {
+        return fail('Aucun service vétérinaire dans votre périmètre.', 404);
+      }
+      const rawReports = await db.report.findMany({
+        where: {
+          serviceId: { in: eligibleServices.map((service) => service.id) },
+          year: parsed.year,
+          month: parsed.month,
+        },
+        select: {
+          id: true,
+          serviceId: true,
+          status: true,
+          data: true,
+        },
+      });
+      const includedReports = filterReportsForConsolidation(
+        rawReports,
+        parsed.status,
+      );
+      if (!includedReports.length) {
+        return fail(
+          'Aucun rapport saisi à consolider pour ce périmètre et ce filtre.',
+          404,
+        );
+      }
+      const serviceById = new Map(
+        eligibleServices.map((service) => [service.id, service]),
+      );
+      const includedServices = includedReports
+        .map((report) => {
+          const service = serviceById.get(report.serviceId);
+          if (!service) return null;
+          return {
+            serviceId: service.id,
+            serviceName: service.name,
+            serviceKind: service.kind,
+            divisionName: service.division.name,
+            regionName: service.division.region.name,
+            status: report.status,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+      const meta = describeConsolidatedScope({
+        role: u.role,
+        year: parsed.year,
+        month: parsed.month,
+        statusFilter: parsed.status,
+        includedCount: includedReports.length,
+        totalServiceCount: eligibleServices.length,
+        regionFilterName:
+          (u.role === 'ADMIN_NATIONAL' || u.role === 'DIRECTION_CENTRALE') &&
+          parsed.regionId
+            ? eligibleServices[0]?.division.region.name
+            : undefined,
+        regionName: eligibleServices[0]?.division.region.name,
+        divisionName: eligibleServices[0]?.division.name,
+      });
+      const consolidatedInput = {
+        year: parsed.year,
+        month: parsed.month,
+        scopeLabel: meta.scopeLabel,
+        subtitle: meta.subtitle,
+        filenameSlug: meta.filenameSlug,
+        statusLabel: meta.statusLabel,
+        totalServiceCount: eligibleServices.length,
+        reports: includedReports,
+        services: includedServices,
+      };
+      if (recipient) {
+        if (!mailConfigured())
+          return fail(
+            'Le service d’envoi d’e-mails de VETRA n’est pas configuré.',
+            503,
+          );
+        return sendReportEmail(
+          recipient,
+          meta.emailSubject,
+          await exportConsolidatedReport(consolidatedInput, 'pdf'),
+        );
+      }
+      return exportConsolidatedReport(
+        consolidatedInput,
+        type as 'pdf' | 'xlsx',
+      );
+    }
+    const id = params.get('id');
     const report = await db.report.findUnique({
       where: { id: String(id) },
       include: { service: true },
@@ -1311,7 +1457,7 @@ async function handle(
         await exportReport(report, 'pdf'),
       );
     }
-    const type = req.nextUrl.searchParams.get('type');
+    const type = params.get('type');
     if (type !== 'pdf' && type !== 'xlsx') return fail('Format inconnu');
     return exportReport(report, type);
   }

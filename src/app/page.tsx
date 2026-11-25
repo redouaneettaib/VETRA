@@ -48,6 +48,7 @@ import CanevasTable from './CanevasTable';
 import Reporting from './Reporting';
 import ReportShare from './ReportShare';
 import ReportEmail from './ReportEmail';
+import ConsolidatedExportBar from './ConsolidatedExportBar';
 import LoginScreen from './LoginScreen';
 import PasswordChange from './PasswordChange';
 import AdminMailDiagnostics from './AdminMailDiagnostics';
@@ -272,6 +273,43 @@ export default function Home() {
     if (validationStatusFilter === 'SAISIS') return !!report;
     return report?.status === validationStatusFilter;
   });
+  const canConsolidate =
+    !!me && me.user.role !== 'CHEF_SERVICE';
+  const consolidatedIncludedCount = validationReports.filter(
+    ({ report }: { report: Any }) => !!report,
+  ).length;
+  const consolidatedScopeLabel = (() => {
+    if (!me) return '';
+    if (centralScope) {
+      if (validationRegionFilter) {
+        const regName = org.regions.find(
+          (r: Any) => r.id === validationRegionFilter,
+        )?.name;
+        return regName
+          ? `Direction régionale · ${regName}`
+          : 'Direction régionale sélectionnée';
+      }
+      return 'Périmètre national · Toutes les directions régionales';
+    }
+    if (me.user.role === 'DIRECTEUR_REGIONAL') {
+      const regName =
+        org.regions.find((r: Any) => r.id === me.user.regionId)?.name ||
+        org.regions[0]?.name;
+      return regName
+        ? `Direction régionale · ${regName}`
+        : 'Votre direction régionale';
+    }
+    if (me.user.role === 'CHEF_DIVISION') {
+      const divName =
+        org.divisions.find((d: Any) => d.id === me.user.divisionId)?.name ||
+        org.services[0]?.division?.name ||
+        org.regions[0]?.name;
+      return divName
+        ? `Division vétérinaire · ${divName}`
+        : 'Votre division vétérinaire';
+    }
+    return 'Périmètre autorisé';
+  })();
   const [adminRole, setAdminRole] = useState('CHEF_SERVICE');
   const [editingService, setEditingService] = useState('');
   const isFinalizedReport =
@@ -1549,6 +1587,18 @@ export default function Home() {
                 );
               })}
             </div>
+            {canConsolidate && (
+              <ConsolidatedExportBar
+                year={year}
+                month={month}
+                monthLabel={months[month - 1] || ''}
+                scopeLabel={consolidatedScopeLabel}
+                statusFilter={validationStatusFilter}
+                regionId={centralScope ? validationRegionFilter : ''}
+                includedCount={consolidatedIncludedCount}
+                totalServiceCount={validationServices.length}
+              />
+            )}
             {validationReports.length === 0 && (
               <p className="text-sm text-slate-500 py-3">
                 Aucun service pour cette direction ou cet état.

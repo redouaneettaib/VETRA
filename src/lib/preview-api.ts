@@ -12,8 +12,14 @@ import {
   readNumber,
 } from './forms';
 import { analyze, parseFilters } from './analytics';
+import { z } from 'zod';
 import { exportAnalysis } from './reporting-export';
-import { exportReport } from './exports';
+import { exportConsolidatedReport, exportReport } from './exports';
+import {
+  describeConsolidatedScope,
+  filterReportsForConsolidation,
+  parseConsolidatedParams,
+} from './consolidated-export';
 import {
   clearSession,
   currentUser,
@@ -41,6 +47,35 @@ import {
 type Input = Record<string, any>;
 const obj = (v: unknown): Input =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Input) : {};
+const previewRecipientAddress = z.string().trim().max(254).email();
+
+async function sendPreviewReportEmail(
+  recipient: string,
+  title: string,
+  pdf: Response,
+) {
+  const filename =
+    pdf.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] ??
+    'VETRA.pdf';
+  const content = Buffer.from(await pdf.arrayBuffer());
+  if (!pdf.ok || content.subarray(0, 5).toString('ascii') !== '%PDF-') {
+    return fail('Le PDF n’a pas pu être généré.', 500);
+  }
+  try {
+    await email(
+      recipient,
+      'VETRA — ' + title,
+      'Bonjour,\n\nVous trouverez en pièce jointe le rapport PDF généré depuis VETRA.\n\nONSSA / DPA — VETRA',
+      { filename, content },
+    );
+    return Response.json({ sent: true });
+  } catch {
+    return fail(
+      'Le serveur de messagerie n’a pas confirmé l’envoi du PDF. Vérifiez l’adresse et réessayez.',
+      502,
+    );
+  }
+}
 
 export async function handlePreviewRoute(
   req: NextRequest,
@@ -829,15 +864,160 @@ export async function handlePreviewRoute(
     });
   }
 
-  if (method === 'GET' && path === 'export') {
-    const id = req.nextUrl.searchParams.get('id');
+  if (
+    (method === 'GET' && path === 'export') ||
+    (method === 'POST' && path === 'export/email')
+  ) {
+    const isEmail = method === 'POST' && path === 'export/email';
+    let recipient: string | null = null;
+    if (isEmail) {
+      const checked = previewRecipientAddress.safeParse(body.recipient);
+      if (!checked.success) {
+        return fail('Saisissez une seule adresse e-mail valide.');
+      }
+      recipient = checked.data;
+    }
+    const params = req.nextUrl.searchParams;
+    if (params.get('scope') === 'total') {
+      if (u.role === 'CHEF_SERVICE') {
+        return fail(
+          'La consolidation multi-services est réservée aux directions et divisions.',
+          403,
+        );
+      }
+      let parsed;
+      try {
+        parsed = parseConsolidatedParams(params);
+      } catch (error) {
+        return fail(
+          error instanceof Error ? error.message : 'Paramètres invalides',
+        );
+      }
+      const type = params.get('type');
+      if (!recipient && type !== 'pdf' && type !== 'xlsx') {
+        return fail('Format inconnu');
+      }
+      const scopedServices = store.services
+        .filter((s) => scope.includes(s.id))
+        .map((s) => previewHydrateService(s));
+      let eligibleServices = scopedServices;
+      if (parsed.regionId) {
+        const isCentral =
+          u.role === 'ADMIN_NATIONAL' || u.role === 'DIRECTION_CENTRALE';
+        if (
+          !isCentral &&
+          !scopedServices.every((s) => s.division.region.id === parsed.regionId)
+        ) {
+          return fail('Périmètre non autorisé', 403);
+        }
+        eligibleServices = scopedServices.filter(
+          (s) => s.division.region.id === parsed.regionId,
+        );
+        if (!eligibleServices.length) {
+          return fail('Périmètre non autorisé', 403);
+        }
+      }
+      if (!eligibleServices.length) {
+        return fail('Aucun service vétérinaire dans votre périmètre.', 404);
+      }
+      const eligibleIds = new Set(eligibleServices.map((s) => s.id));
+      const rawReports = store.reports.filter(
+        (r) =>
+          eligibleIds.has(r.serviceId) &&
+          r.year === parsed.year &&
+          r.month === parsed.month,
+      );
+      const includedReports = filterReportsForConsolidation(
+        rawReports,
+        parsed.status,
+      );
+      if (!includedReports.length) {
+        return fail(
+          'Aucun rapport saisi à consolider pour ce périmètre et ce filtre.',
+          404,
+        );
+      }
+      const serviceById = new Map(eligibleServices.map((s) => [s.id, s]));
+      const includedServices = includedReports
+        .map((r) => {
+          const s = serviceById.get(r.serviceId);
+          if (!s) return null;
+          return {
+            serviceId: s.id,
+            serviceName: s.name,
+            serviceKind: s.kind,
+            divisionName: s.division.name,
+            regionName: s.division.region.name,
+            status: r.status,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+      const meta = describeConsolidatedScope({
+        role: u.role,
+        year: parsed.year,
+        month: parsed.month,
+        statusFilter: parsed.status,
+        includedCount: includedReports.length,
+        totalServiceCount: eligibleServices.length,
+        regionFilterName:
+          (u.role === 'ADMIN_NATIONAL' || u.role === 'DIRECTION_CENTRALE') &&
+          parsed.regionId
+            ? eligibleServices[0]?.division.region.name
+            : undefined,
+        regionName: eligibleServices[0]?.division.region.name,
+        divisionName: eligibleServices[0]?.division.name,
+      });
+      const consolidatedInput = {
+        year: parsed.year,
+        month: parsed.month,
+        scopeLabel: meta.scopeLabel,
+        subtitle: meta.subtitle,
+        filenameSlug: meta.filenameSlug,
+        statusLabel: meta.statusLabel,
+        totalServiceCount: eligibleServices.length,
+        reports: includedReports,
+        services: includedServices,
+      };
+      if (recipient) {
+        if (!mailConfigured()) {
+          return fail(
+            'Le service d’envoi d’e-mails de VETRA n’est pas configuré.',
+            503,
+          );
+        }
+        return sendPreviewReportEmail(
+          recipient,
+          meta.emailSubject,
+          await exportConsolidatedReport(consolidatedInput, 'pdf'),
+        );
+      }
+      return exportConsolidatedReport(
+        consolidatedInput,
+        type as 'pdf' | 'xlsx',
+      );
+    }
+    const id = params.get('id');
     const report = store.reports.find((r) => r.id === String(id));
     if (!report || !scope.includes(report.serviceId)) {
       return fail('Accès refusé', 403);
     }
-    const type = req.nextUrl.searchParams.get('type');
+    const hydrated = previewHydrateReport(report);
+    if (recipient) {
+      if (!mailConfigured()) {
+        return fail(
+          'Le service d’envoi d’e-mails de VETRA n’est pas configuré.',
+          503,
+        );
+      }
+      return sendPreviewReportEmail(
+        recipient,
+        `Rapport ${hydrated.month}/${hydrated.year} · ${hydrated.service.name}`,
+        await exportReport(hydrated as any, 'pdf'),
+      );
+    }
+    const type = params.get('type');
     if (type !== 'pdf' && type !== 'xlsx') return fail('Format inconnu');
-    return exportReport(previewHydrateReport(report) as any, type);
+    return exportReport(hydrated as any, type);
   }
 
   return fail('Action non disponible en mode aperçu local', 400);
