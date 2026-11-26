@@ -52,28 +52,45 @@ describe('Progression régionale', () => {
       geography.regions.every((region) => /^M.+Z$/.test(region.path)),
     ).toBe(true);
   });
-  it('classe les 12 régions dans l’ordre officiel de l’article 35 de l’ONSSA', () => {
+  it('classe les 12 régions dans l’ordre défini pour VETRA', () => {
     const shuffled = [
-      { id: '12', name: 'Dakhla-Oued Ed-Dahab' },
-      { id: '6', name: 'Casablanca-Settat' },
-      { id: '1', name: 'Tanger-Tétouan-Al Hoceïma' },
-      { id: '9', name: 'Souss-Massa' },
-      { id: '2', name: "L'Oriental" },
-      { id: '11', name: 'Laâyoune-Sakia El Hamra' },
-      { id: '4', name: 'Rabat-Salé-Kénitra' },
-      { id: '7', name: 'Marrakech-Safi' },
-      { id: '3', name: 'Fès-Meknès' },
-      { id: '10', name: 'Guelmim-Oued Noun' },
-      { id: '5', name: 'Béni Mellal-Khénifra' },
-      { id: '8', name: 'Drâa-Tafilalet' },
+      { id: '11', name: 'Dakhla-Oued Ed-Dahab' },
+      { id: '3', name: 'Casablanca-Settat' },
+      { id: '2', name: 'Tanger-Tétouan-Al Hoceïma' },
+      { id: '6', name: 'Souss-Massa' },
+      { id: '4', name: "L'Oriental" },
+      { id: '7', name: 'Laâyoune-Sakia El Hamra' },
+      { id: '1', name: 'Rabat-Salé-Kénitra' },
+      { id: '8', name: 'Marrakech-Safi' },
+      { id: '10', name: 'Fès-Meknès' },
+      { id: '12', name: 'Guelmim-Oued Noun' },
+      { id: '9', name: 'Béni Mellal-Khénifra' },
+      { id: '5', name: 'Drâa-Tafilalet' },
     ];
+    expect(sortRegionsOfficial(shuffled).map((r) => r.name)).toEqual([
+      'Rabat-Salé-Kénitra',
+      'Tanger-Tétouan-Al Hoceïma',
+      'Casablanca-Settat',
+      "L'Oriental",
+      'Drâa-Tafilalet',
+      'Souss-Massa',
+      'Laâyoune-Sakia El Hamra',
+      'Marrakech-Safi',
+      'Béni Mellal-Khénifra',
+      'Fès-Meknès',
+      'Dakhla-Oued Ed-Dahab',
+      'Guelmim-Oued Noun',
+    ]);
     expect(sortRegionsOfficial(shuffled).map((r) => r.name)).toEqual([
       ...OFFICIAL_REGION_ORDER,
     ]);
-    expect(officialRegionRank('Tanger-Tétouan-Al Hoceima')).toBe(1);
-    expect(officialRegionRank("L'Oriental")).toBe(2);
-    expect(officialRegionRank('Laayoune-Sakia Hamra')).toBe(11);
-    expect(officialRegionRank('Dakhla Oued Eddahhab')).toBe(12);
+    expect(officialRegionRank('Rabat-Salé-Kénitra')).toBe(1);
+    expect(officialRegionRank('Tanger - Tétouan - Al Hoceima')).toBe(2);
+    expect(officialRegionRank('Oriental')).toBe(4);
+    expect(officialRegionRank('Sous Massa')).toBe(6);
+    expect(officialRegionRank('Laayoune - Sakia - Lhamra')).toBe(7);
+    expect(officialRegionRank('Dakhla - Oued Eddahab')).toBe(11);
+    expect(officialRegionRank('Guelmim - Oued Noun')).toBe(12);
     expect(officialRegionRank('Autre région')).toBe(99);
   });
 });

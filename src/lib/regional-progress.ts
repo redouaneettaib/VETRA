@@ -13,26 +13,26 @@ export const regionKey = (name: string) =>
     .toLowerCase()
     .replace(/[^a-z]/g, '')
     .replace(/^loriental$/, 'oriental')
-    .replace(/^laayounesakiahamra$/, 'laayounesakiaelhamra')
+    .replace(/^sousmassa$/, 'soussmassa')
+    .replace(/^laayounesakia(el|l)?hamra$/, 'laayounesakiaelhamra')
     .replace(/^dakhlaouededdahhab$/, 'dakhlaouededdahab');
 
 /**
- * Ordre officiel des 12 Directions Régionales de l'ONSSA
- * (Article 35 de l'arrêté fixant l'organisation des services de l'ONSSA).
+ * Ordre des 12 Directions Régionales affiché dans le reporting VETRA.
  */
 export const OFFICIAL_REGION_ORDER = [
-  'Tanger-Tétouan-Al Hoceïma',
-  "L'Oriental",
-  'Fès-Meknès',
   'Rabat-Salé-Kénitra',
-  'Béni Mellal-Khénifra',
+  'Tanger-Tétouan-Al Hoceïma',
   'Casablanca-Settat',
-  'Marrakech-Safi',
+  "L'Oriental",
   'Drâa-Tafilalet',
   'Souss-Massa',
-  'Guelmim-Oued Noun',
   'Laâyoune-Sakia El Hamra',
+  'Marrakech-Safi',
+  'Béni Mellal-Khénifra',
+  'Fès-Meknès',
   'Dakhla-Oued Ed-Dahab',
+  'Guelmim-Oued Noun',
 ] as const;
 
 const OFFICIAL_REGION_RANK = new Map<string, number>(
