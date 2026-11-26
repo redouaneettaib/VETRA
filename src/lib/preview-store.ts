@@ -135,8 +135,8 @@ function createInitialState(): PreviewState {
   const users: User[] = [
     {
       id: 'usr-direction',
-      name: 'Bennani',
-      firstName: 'Nadia',
+      name: 'ALIBOU',
+      firstName: 'HICHAM',
       email: 'direction@vetra.local',
       phone: '0537 67 65 00',
       role: 'DIRECTION_CENTRALE',
@@ -166,8 +166,8 @@ function createInitialState(): PreviewState {
     ...regionalChefUsers,
     {
       id: 'usr-div-casa',
-      name: 'Chraibi',
-      firstName: 'Youssef',
+      name: 'HACHI',
+      firstName: 'ABDERRAHMANE',
       email: 'division.casa@vetra.local',
       phone: '0522 25 71 04',
       role: 'CHEF_DIVISION',
@@ -181,8 +181,8 @@ function createInitialState(): PreviewState {
     },
     {
       id: 'usr-dr-casa',
-      name: 'Alami',
-      firstName: 'Hassan',
+      name: 'SERTANY',
+      firstName: 'MOUNIR',
       email: 'dr.casa@vetra.local',
       phone: '0522 25 71 00',
       role: 'DIRECTEUR_REGIONAL',

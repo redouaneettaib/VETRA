@@ -331,15 +331,15 @@ function buildTutorialHtml(): string {
         <span>Organisation (12 DR, 43 services), comptes, réinitialisation MDP, habilitations par rubrique et messagerie.</span>
       </div>
       <div class="cover-card">
-        <strong>Volet 2 · Administration centrale (DPA)</strong>
+        <strong>Volet 2 · Administration centrale (HICHAM ALIBOU)</strong>
         <span>Tableau de bord national, carte interactive 12 régions, Total consolidé multi-services, Reporting officiel et Veille IA.</span>
       </div>
       <div class="cover-card">
-        <strong>Volet 3 · Directions régionales &amp; Divisions</strong>
+        <strong>Volet 3 · Directions régionales (MOUNIR SERTANY) &amp; Divisions (ABDERRAHMANE HACHI)</strong>
         <span>Supervision territoriale, validation / révocation des rapports, exports individuels et consolidés par périmètre.</span>
       </div>
       <div class="cover-card">
-        <strong>Volet 4 · Chefs de services vétérinaires</strong>
+        <strong>Volet 4 · Chefs de services vétérinaires (MERYEM CHAIB)</strong>
         <span>Saisie mensuelle guidée (Provinciaux &amp; DCSP Frontaliers), totaux automatiques, soumission et corrections.</span>
       </div>
     </div>
@@ -515,8 +515,8 @@ function buildTutorialHtml(): string {
     ${figure(8, '08_admin_messagerie.png', 'Administration — Diagnostic et test de la messagerie')}
 
     <div class="section-banner">
-      <div class="volet-tag">Volet 2 · Pilotage national</div>
-      <h2>Administration centrale (DIRECTION_CENTRALE)</h2>
+      <div class="volet-tag">Volet 2 · Pilotage national · HICHAM ALIBOU</div>
+      <h2>Administration centrale (DIRECTION_CENTRALE — HICHAM ALIBOU)</h2>
     </div>
     <p>La Direction centrale (DPA) supervise les 12 Directions régionales et l’ensemble des 43 services vétérinaires, dispose d’exports consolidés multi-services, du Reporting officiel et du module exclusif <strong>Veille &amp; Analyse IA</strong>.</p>
 
@@ -574,17 +574,17 @@ function buildTutorialHtml(): string {
 
     <div class="section-banner">
       <div class="volet-tag">Volet 3 · Pilotage territorial &amp; Contrôle</div>
-      <h2>Directions régionales &amp; Divisions vétérinaires</h2>
+      <h2>Directions régionales (MOUNIR SERTANY) &amp; Divisions vétérinaires (ABDERRAHMANE HACHI)</h2>
     </div>
 
-    <h3>3.1 Supervision par le Directeur régional (DIRECTEUR_REGIONAL)</h3>
+    <h3>3.1 Supervision par le Directeur régional (MOUNIR SERTANY)</h3>
     <ol>
       <li>Le Tableau de bord, la carte et les indicateurs sont automatiquement restreints aux divisions et services de votre Direction régionale.</li>
       <li>Identifiez rapidement les services en retard (<em>Non introduits</em> / <em>Brouillons</em>), exportez le <strong>Total consolidé régional</strong> (Excel, PDF, E-mail, WhatsApp) et exploitez le <strong>Reporting officiel régional</strong>.</li>
     </ol>
-    ${figure(15, '14_dr_dashboard.png', 'Directeur régional — Tableau de bord restreint au périmètre régional')}
+    ${figure(15, '14_dr_dashboard.png', 'Direction régionale (MOUNIR SERTANY) — Tableau de bord restreint au périmètre régional')}
 
-    <h3>3.2 Validation, révocation et export consolidé par le Chef de division (CHEF_DIVISION)</h3>
+    <h3>3.2 Validation, révocation et export consolidé par le Chef de division (ABDERRAHMANE HACHI)</h3>
     <ol>
       <li>Ouvrez <strong>Rapports et validation</strong> et filtrez sur l’onglet <strong>« En validation »</strong> (rapports <code>SOUMIS</code>).</li>
       <li>Cliquez sur l’icône <strong>Œil</strong> pour contrôler l’intégralité des rubriques saisies.</li>
@@ -594,35 +594,35 @@ function buildTutorialHtml(): string {
     <div class="callout warn">
       <strong>Règle de gouvernance :</strong> une fois un rapport validé par le Chef de division, seule la <strong>Direction centrale</strong> peut le révoquer en cas de correction exceptionnelle.
     </div>
-    ${figure(16, '15_division_validation.png', 'Chef de division — Validation, révocation et Total consolidé de la division')}
+    ${figure(16, '15_division_validation.png', 'Chef de division (ABDERRAHMANE HACHI) — Validation, révocation et Total consolidé de la division')}
 
     <div class="section-banner">
-      <div class="volet-tag">Volet 4 · Saisie terrain</div>
-      <h2>Chefs de services vétérinaires (CHEF_SERVICE)</h2>
+      <div class="volet-tag">Volet 4 · Saisie terrain · MERYEM CHAIB</div>
+      <h2>Chefs de services vétérinaires (CHEF_SERVICE — MERYEM CHAIB)</h2>
     </div>
 
-    <h3>4.1 Saisie mensuelle guidée (Service provincial / préfectoral)</h3>
+    <h3>4.1 Saisie mensuelle guidée (Service provincial / préfectoral — MERYEM CHAIB)</h3>
     <ol>
       <li>Ouvrez <strong>Saisie mensuelle</strong> et sélectionnez le mois dans le ruban supérieur.</li>
       <li>Complétez les rubriques habilitées étape par étape (les totaux <strong>Σ</strong> sont calculés en temps réel ; une rubrique sans activité peut être validée vide via <strong>« Enregistrer et continuer → »</strong>).</li>
       <li>Sauvegardez à tout moment avec <strong>« Enregistrer le brouillon »</strong> (<code>BROUILLON</code>).</li>
     </ol>
-    ${figure(17, '19_chef_saisie_active.png', 'Chef de service — Saisie mensuelle active et suivi d’avancement')}
+    ${figure(17, '19_chef_saisie_active.png', 'Chef de service (MERYEM CHAIB) — Saisie mensuelle active et suivi d’avancement')}
 
     <h3>4.2 Soumission du rapport complet et exports</h3>
     <ol>
       <li>À <strong>100 % de complétude</strong>, cliquez sur <strong>« Soumettre le rapport complet »</strong> : le rapport passe en <code>SOUMIS</code> et est transmis au Chef de division.</li>
       <li>Utilisez la barre inférieure pour télécharger en <strong>Excel (.xlsx)</strong> / <strong>PDF</strong>, envoyer par <strong>E-mail</strong> ou partager via <strong>WhatsApp</strong>.</li>
     </ol>
-    ${figure(18, '16_chef_saisie_provincial.png', 'Chef de service — Rapport complet consultable et verrouillé')}
-    ${figure(19, '17_chef_saisie_canevas_dock.png', 'Chef de service — Barre d’exports et partage en bas de canevas')}
+    ${figure(18, '16_chef_saisie_provincial.png', 'Chef de service (MERYEM CHAIB) — Rapport complet consultable et verrouillé')}
+    ${figure(19, '17_chef_saisie_canevas_dock.png', 'Chef de service (MERYEM CHAIB) — Barre d’exports et partage en bas de canevas')}
 
     <h3>4.3 Cas particulier des Services Frontaliers / DCSP &amp; rapports révoqués</h3>
     <ul>
       <li><strong>Services Frontaliers (DCSP)</strong> : le canevas affiche exclusivement la <strong>Section IV — Activités relatives à l’importation</strong> (<em>Quantités contrôlées</em> et <em>Quantités non admises</em>).</li>
       <li><strong>Traitement d’un rapport révoqué (<code>REVOQUE</code>)</strong> : un bandeau rouge affiche le motif saisi par le Chef de division ou la Direction centrale ; le canevas se déverrouille automatiquement pour correction (<code>CORRIGE</code>) puis nouvelle soumission.</li>
     </ul>
-    ${figure(20, '18_chef_saisie_dcsp.png', 'Chef de service frontalier DCSP — Canevas dédié à la Section IV (Importation)')}
+    ${figure(20, '18_chef_saisie_dcsp.png', 'Chef de service frontalier DCSP (MERYEM CHAIB) — Canevas dédié à la Section IV (Importation)')}
   </main>
 </div>
 </body>
@@ -1242,10 +1242,10 @@ async function buildPowerPoint(): Promise<void> {
       [
         { text: 'Fonctionnalité', options: { bold: true, color: C.white, fill: { color: C.navy } } },
         { text: 'Volet 1\nADMIN_NATIONAL', options: { bold: true, color: C.white, fill: { color: C.navy }, align: 'center' } },
-        { text: 'Volet 2\nDIRECTION_CENTRALE', options: { bold: true, color: C.white, fill: { color: C.teal }, align: 'center' } },
-        { text: 'Volet 3A\nDIRECTEUR_REGIONAL', options: { bold: true, color: C.white, fill: { color: C.navyMid }, align: 'center' } },
-        { text: 'Volet 3B\nCHEF_DIVISION', options: { bold: true, color: C.white, fill: { color: C.navyMid }, align: 'center' } },
-        { text: 'Volet 4\nCHEF_SERVICE', options: { bold: true, color: C.white, fill: { color: C.navy }, align: 'center' } },
+        { text: 'Volet 2 · Direction centrale\nHICHAM ALIBOU', options: { bold: true, color: C.white, fill: { color: C.teal }, align: 'center' } },
+        { text: 'Volet 3A · Dir. régionale\nMOUNIR SERTANY', options: { bold: true, color: C.white, fill: { color: C.navyMid }, align: 'center' } },
+        { text: 'Volet 3B · Chef division\nABDERRAHMANE HACHI', options: { bold: true, color: C.white, fill: { color: C.navyMid }, align: 'center' } },
+        { text: 'Volet 4 · Chef de service\nMERYEM CHAIB', options: { bold: true, color: C.white, fill: { color: C.navy }, align: 'center' } },
       ],
       [
         { text: 'Périmètre d’accès', options: { bold: true } },
@@ -1580,7 +1580,7 @@ async function buildPowerPoint(): Promise<void> {
     const s = pptx.addSlide();
     addHeader(
       s,
-      'Volet 2 · Direction centrale (DPA)',
+      'Volet 2 · Direction centrale (HICHAM ALIBOU)',
       'Carte interactive des 12 Directions régionales et suivi mensuel',
       6,
     );
@@ -1775,7 +1775,7 @@ async function buildPowerPoint(): Promise<void> {
     const s = pptx.addSlide();
     addHeader(
       s,
-      'Volet 2 · Intelligence décisionnelle (Direction centrale)',
+      'Volet 2 · Intelligence décisionnelle (Direction centrale — HICHAM ALIBOU)',
       'Module exclusif Veille sanitaire & Analyse IA',
       9,
     );
@@ -1872,7 +1872,7 @@ async function buildPowerPoint(): Promise<void> {
       1.38,
       5.95,
       3.62,
-      'Directeur régional : tableau de bord et suivi filtrés sur sa Direction régionale',
+      'Direction régionale (MOUNIR SERTANY) : tableau de bord filtré sur sa région',
     );
     addScreenshotFrame(
       s,
@@ -1881,7 +1881,7 @@ async function buildPowerPoint(): Promise<void> {
       1.38,
       5.95,
       3.62,
-      'Chef de division : validation, révocation motivée et Total consolidé de la division',
+      'Chef de division (ABDERRAHMANE HACHI) : validation, révocation et Total consolidé',
     );
 
     addBulletCard(
@@ -1890,7 +1890,7 @@ async function buildPowerPoint(): Promise<void> {
       5.38,
       5.95,
       1.52,
-      'Rôle du Directeur régional',
+      'Direction régionale — MOUNIR SERTANY',
       [
         'Relance ciblée des services Non introduits ou en Brouillon.',
         'Export consolidé régional (Excel, PDF, E-mail, WhatsApp) et Reporting régional.',
@@ -1903,7 +1903,7 @@ async function buildPowerPoint(): Promise<void> {
       5.38,
       5.95,
       1.52,
-      'Rôle du Chef de division',
+      'Chef de division — ABDERRAHMANE HACHI',
       [
         'Contrôle intégral des rapports SOUMIS avant validation (VALIDE) ou révocation.',
         'Total consolidé de la division accessible directement depuis Rapports et validation.',
@@ -1919,7 +1919,7 @@ async function buildPowerPoint(): Promise<void> {
     const s = pptx.addSlide();
     addHeader(
       s,
-      'Volet 4 · Saisie terrain',
+      'Volet 4 · Saisie terrain · Chef de service (MERYEM CHAIB)',
       'Expérience guidée pour les Chefs de services (Provinciaux & DCSP)',
       11,
     );
@@ -1931,7 +1931,7 @@ async function buildPowerPoint(): Promise<void> {
       1.38,
       5.95,
       3.62,
-      'Service provincial : saisie mensuelle progressive, jauge d’avancement et totaux Σ',
+      'Chef de service provincial (MERYEM CHAIB) : saisie progressive et totaux Σ',
     );
     addScreenshotFrame(
       s,
@@ -1940,7 +1940,7 @@ async function buildPowerPoint(): Promise<void> {
       1.38,
       5.95,
       3.62,
-      'Service frontalier DCSP : canevas ciblé Section IV — Importation',
+      'Chef de service DCSP (MERYEM CHAIB) : canevas ciblé Section IV — Importation',
     );
 
     addBulletCard(

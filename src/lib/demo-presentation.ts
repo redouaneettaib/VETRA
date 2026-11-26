@@ -334,8 +334,8 @@ export const PRESENTATION_CHEF_ACCOUNTS: readonly PresentationChefAccountSeed[] 
   [
     {
       id: 'usr-dcsp-casa',
-      firstName: 'Karim',
-      name: 'El Idrissi',
+      firstName: 'MERYEM',
+      name: 'CHAIB',
       email: 'dcsp.casa@vetra.local',
       phone: '0522 30 41 12',
       serviceId: 'srv-dcsp-casa',
@@ -343,8 +343,8 @@ export const PRESENTATION_CHEF_ACCOUNTS: readonly PresentationChefAccountSeed[] 
     },
     {
       id: 'usr-chef-casa',
-      firstName: 'Salma',
-      name: 'Tazi',
+      firstName: 'MERYEM',
+      name: 'CHAIB',
       email: 'chef.casa@vetra.local',
       phone: '0522 44 19 80',
       serviceId: 'srv-pref-casa',
