@@ -12,7 +12,45 @@ export const regionKey = (name: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z]/g, '')
-    .replace(/^loriental$/, 'oriental');
+    .replace(/^loriental$/, 'oriental')
+    .replace(/^laayounesakiahamra$/, 'laayounesakiaelhamra')
+    .replace(/^dakhlaouededdahhab$/, 'dakhlaouededdahab');
+
+/**
+ * Ordre officiel des 12 Directions Régionales de l'ONSSA
+ * (Article 35 de l'arrêté fixant l'organisation des services de l'ONSSA).
+ */
+export const OFFICIAL_REGION_ORDER = [
+  'Tanger-Tétouan-Al Hoceïma',
+  "L'Oriental",
+  'Fès-Meknès',
+  'Rabat-Salé-Kénitra',
+  'Béni Mellal-Khénifra',
+  'Casablanca-Settat',
+  'Marrakech-Safi',
+  'Drâa-Tafilalet',
+  'Souss-Massa',
+  'Guelmim-Oued Noun',
+  'Laâyoune-Sakia El Hamra',
+  'Dakhla-Oued Ed-Dahab',
+] as const;
+
+const OFFICIAL_REGION_RANK = new Map<string, number>(
+  OFFICIAL_REGION_ORDER.map((name, index) => [regionKey(name), index + 1]),
+);
+
+export const officialRegionRank = (name: string) =>
+  OFFICIAL_REGION_RANK.get(regionKey(name)) ?? 99;
+
+export function sortRegionsOfficial<T extends { name: string }>(
+  items: readonly T[],
+): T[] {
+  return [...items].sort(
+    (a, b) =>
+      officialRegionRank(a.name) - officialRegionRank(b.name) ||
+      a.name.localeCompare(b.name, 'fr'),
+  );
+}
 
 export function regionalProgress(
   regions: Region[],

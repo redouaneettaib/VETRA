@@ -1,11 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { MapPin } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronDown, ChevronUp, MapPin } from 'lucide-react';
 import geography from '@/lib/regions-maroc.json';
 import {
+  officialRegionRank,
   previousPeriod,
   regionalProgress,
   regionKey,
+  sortRegionsOfficial,
   type Region,
   type RegionalService,
 } from '@/lib/regional-progress';
@@ -52,6 +54,13 @@ export default function RegionalMap({
     ids: Set<string> | null;
     failed?: boolean;
   }>();
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const itemRefs = useRef<Map<string, HTMLLIElement>>(new Map());
+  const [scrollState, setScrollState] = useState({
+    canUp: false,
+    canDown: false,
+    hasOverflow: false,
+  });
   const { year: previousYear, month: previousMonth } = previousPeriod(
     year,
     month,
@@ -83,13 +92,48 @@ export default function RegionalMap({
     return () => controller.abort();
   }, [key, previousMonth, previousYear]);
   const previous = history?.key === key ? history : undefined;
-  const rows = regionalProgress(
-    regions,
-    services,
-    recorded,
-    previous?.ids ?? null,
+  const rows = sortRegionsOfficial(
+    regionalProgress(regions, services, recorded, previous?.ids ?? null),
   );
   const byName = new Map(rows.map((row) => [regionKey(row.name), row]));
+  const rowCount = rows.length;
+
+  const updateScrollState = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const hasOverflow = el.scrollHeight > el.clientHeight + 4;
+    const canUp = el.scrollTop > 4;
+    const canDown = el.scrollTop + el.clientHeight < el.scrollHeight - 4;
+    setScrollState((prev) =>
+      prev.canUp === canUp &&
+      prev.canDown === canDown &&
+      prev.hasOverflow === hasOverflow
+        ? prev
+        : { canUp, canDown, hasOverflow },
+    );
+  }, []);
+
+  useEffect(() => {
+    updateScrollState();
+    window.addEventListener('resize', updateScrollState);
+    return () => window.removeEventListener('resize', updateScrollState);
+  }, [rowCount, updateScrollState]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const node = itemRefs.current.get(selected);
+    if (node) {
+      node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [selected]);
+
+  const scrollListBy = (direction: -1 | 1) => {
+    const el = listRef.current;
+    if (!el) return;
+    const step = Math.max(180, Math.round(el.clientHeight * 0.8));
+    el.scrollBy({ top: direction * step, behavior: 'smooth' });
+  };
+
   return (
     <section className="panel vetra-map-panel">
       <header className="flex flex-wrap justify-between gap-2">
@@ -181,17 +225,54 @@ export default function RegionalMap({
           </div>
         </div>
         <div className="min-w-0">
-          <h3 className="font-bold text-sm text-navy">
-            Écart en points par rapport à{' '}
-            {frenchMonth(previousYear, previousMonth)}
-          </h3>
+          <div className="vetra-region-header">
+            <div className="min-w-0">
+              <h3 className="font-bold text-sm text-navy">
+                Écart en points par rapport à{' '}
+                {frenchMonth(previousYear, previousMonth)}
+              </h3>
+              {rows.length > 0 && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {rows.length} direction{rows.length > 1 ? 's' : ''}{' '}
+                  régionale{rows.length > 1 ? 's' : ''} · classement officiel
+                </p>
+              )}
+            </div>
+            {scrollState.hasOverflow && (
+              <div
+                className="vetra-region-scroll-controls"
+                aria-label="Défilement de la liste des régions"
+              >
+                <button
+                  type="button"
+                  className="vetra-region-scroll-btn"
+                  aria-label="Régions précédentes"
+                  title="Monter dans la liste"
+                  disabled={!scrollState.canUp}
+                  onClick={() => scrollListBy(-1)}
+                >
+                  <ChevronUp size={16} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="vetra-region-scroll-btn"
+                  aria-label="Régions suivantes"
+                  title="Descendre dans la liste"
+                  disabled={!scrollState.canDown}
+                  onClick={() => scrollListBy(1)}
+                >
+                  <ChevronDown size={16} aria-hidden="true" />
+                </button>
+              </div>
+            )}
+          </div>
           {!previous && (
-            <p role="status" className="text-xs text-slate-600">
+            <p role="status" className="text-xs text-slate-600 mt-1">
               Chargement de la comparaison…
             </p>
           )}
           {previous?.failed && (
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-slate-600 mt-1">
               La comparaison avec le mois précédent est indisponible.
             </p>
           )}
@@ -200,46 +281,100 @@ export default function RegionalMap({
               Aucun service dans ce périmètre.
             </p>
           )}
-          <ul className="vetra-region-list">
-            {[...rows]
-              .sort(
-                (a, b) => b.rate - a.rate || a.name.localeCompare(b.name, 'fr'),
-              )
-              .map((row) => (
-                <li key={row.id}>
-                  <button
-                    type="button"
-                    aria-pressed={row.id === selected}
-                    onClick={() => onSelect(row.id === selected ? '' : row.id)}
-                  >
-                    <span>
-                      <strong>{row.name}</strong>
-                      <small>
-                        {row.current}/{row.expected} rapports saisis
-                      </small>
-                    </span>
-                    <span className="text-right tabular-nums">
-                      <strong>{row.rate} %</strong>
-                      <small
-                        className={
-                          row.delta == null
-                            ? ''
-                            : row.delta > 0
-                              ? 'text-emerald-700'
-                              : row.delta < 0
-                                ? 'text-rose-700'
-                                : ''
+          {rows.length > 0 && (
+            <div className="vetra-region-scroll-wrap">
+              <ul
+                ref={listRef}
+                className="vetra-region-list"
+                aria-label="Liste des directions régionales"
+                onScroll={updateScrollState}
+              >
+                {rows.map((row, index) => {
+                  const officialRank = officialRegionRank(row.name);
+                  const displayRank =
+                    officialRank <= 12 ? officialRank : index + 1;
+                  return (
+                    <li
+                      key={row.id}
+                      ref={(el) => {
+                        if (el) itemRefs.current.set(row.id, el);
+                        else itemRefs.current.delete(row.id);
+                      }}
+                    >
+                      <button
+                        type="button"
+                        aria-pressed={row.id === selected}
+                        onClick={() =>
+                          onSelect(row.id === selected ? '' : row.id)
                         }
                       >
-                        {row.delta == null
-                          ? '—'
-                          : `${row.delta > 0 ? '+' : ''}${row.delta} pts`}
-                      </small>
-                    </span>
+                        <span className="vetra-region-item-main">
+                          <span
+                            className="vetra-region-rank"
+                            aria-hidden="true"
+                          >
+                            {String(displayRank).padStart(2, '0')}
+                          </span>
+                          <i
+                            className="vetra-region-dot"
+                            aria-hidden="true"
+                            style={{ background: scale(row.rate) }}
+                          />
+                          <span className="min-w-0">
+                            <strong className="block truncate">
+                              {row.name}
+                            </strong>
+                            <small>
+                              {row.current}/{row.expected} rapports saisis
+                            </small>
+                          </span>
+                        </span>
+                        <span className="text-right tabular-nums shrink-0">
+                          <strong>{row.rate} %</strong>
+                          <small
+                            className={
+                              row.delta == null
+                                ? ''
+                                : row.delta > 0
+                                  ? 'text-emerald-700'
+                                  : row.delta < 0
+                                    ? 'text-rose-700'
+                                    : ''
+                            }
+                          >
+                            {row.delta == null
+                              ? '—'
+                              : `${row.delta > 0 ? '+' : ''}${row.delta} pts`}
+                          </small>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {scrollState.hasOverflow && (
+                <div className="vetra-region-scroll-footer">
+                  <button
+                    type="button"
+                    className="vetra-region-scroll-hint"
+                    onClick={() => scrollListBy(scrollState.canDown ? 1 : -1)}
+                  >
+                    {scrollState.canDown ? (
+                      <>
+                        <ChevronDown size={14} aria-hidden="true" />
+                        Défiler pour voir les autres régions
+                      </>
+                    ) : (
+                      <>
+                        <ChevronUp size={14} aria-hidden="true" />
+                        Revenir en haut de la liste
+                      </>
+                    )}
                   </button>
-                </li>
-              ))}
-          </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <p className="text-xs text-slate-500">
@@ -269,3 +404,4 @@ export default function RegionalMap({
     </section>
   );
 }
+

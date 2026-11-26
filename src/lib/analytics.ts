@@ -6,6 +6,7 @@ import {
   numericCells,
   readNumber,
 } from './forms';
+import { sortRegionsOfficial } from './regional-progress';
 
 export const months = [
   'Janvier',
@@ -270,11 +271,7 @@ export function analyze(
       region.transmitted += 1;
   }
   const operational = {
-    regions: [...regional.values()].sort(
-      (a, b) =>
-        b.transmitted / b.expected - a.transmitted / a.expected ||
-        a.name.localeCompare(b.name, 'fr'),
-    ),
+    regions: sortRegionsOfficial([...regional.values()]),
     expected: [...regional.values()].reduce(
       (sum, region) => sum + region.expected,
       0,
