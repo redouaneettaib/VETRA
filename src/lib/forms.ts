@@ -234,3 +234,24 @@ export function isValidCompletedProgression(
 export function cellRubric(address: string) {
   return rubricForRow(Number(/\d+$/.exec(address)?.[0]));
 }
+
+export function reportCompletionPercent(
+  report: { status?: string; data?: unknown } | null | undefined,
+  rights: { rubricId: string; enabled: boolean }[] = [],
+  kind?: string | null,
+): number {
+  if (!report) return 0;
+  const permitted = effectiveRubrics(rights, kind);
+  if (!permitted.length) return 0;
+  if (report.status === 'VALIDE' || report.status === 'SOUMIS') return 100;
+  const rawData =
+    report.data && typeof report.data === 'object' && !Array.isArray(report.data)
+      ? (report.data as Record<string, unknown>)
+      : {};
+  const stored = Array.isArray(rawData.__completed)
+    ? rawData.__completed.map(String)
+    : [];
+  const validCount = permitted.filter((id) => stored.includes(id)).length;
+  return Math.round((validCount / permitted.length) * 100);
+}
+

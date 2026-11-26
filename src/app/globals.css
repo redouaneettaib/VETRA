@@ -2850,4 +2850,68 @@ input:disabled {
   }
 }
 
+.vetra-completeness-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 7.2rem;
+}
+
+.vetra-completeness-track {
+  display: inline-block;
+  width: 4.1rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #e2eaf1;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.vetra-completeness-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.vetra-completeness-fill.is-full {
+  background: #15803d;
+}
+
+.vetra-completeness-fill.is-mid {
+  background: #0e7490;
+}
+
+.vetra-completeness-fill.is-low {
+  background: #d97706;
+}
+
+.vetra-completeness-fill.is-zero {
+  background: #cbd5e1;
+}
+
+.vetra-completeness-pct {
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.vetra-completeness-pct.is-full {
+  color: #15803d;
+}
+
+.vetra-completeness-pct.is-mid {
+  color: #0e5a64;
+}
+
+.vetra-completeness-pct.is-low {
+  color: #b45309;
+}
+
+.vetra-completeness-pct.is-zero {
+  color: #64748b;
+}
+
+
 

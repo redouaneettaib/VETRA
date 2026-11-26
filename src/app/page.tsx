@@ -61,7 +61,11 @@ import RubricIcon from './RubricIcon';
 import RegionalMap from './RegionalMap';
 import ReportNotifications from './ReportNotifications';
 import PeriodRibbon from './PeriodRibbon';
-import { effectiveRubrics, rubricIds } from '@/lib/forms';
+import {
+  effectiveRubrics,
+  reportCompletionPercent,
+  rubricIds,
+} from '@/lib/forms';
 import { months } from '@/lib/analytics';
 
 function Brand() {
@@ -1611,11 +1615,22 @@ export default function Home() {
                     <th>Direction régionale</th>
                     <th>Service</th>
                     <th>Statut</th>
+                    <th>Complétude</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {validationReports.map(({ service: s, report: r }: { service: Any; report: Any }) => (
+                  {validationReports.map(({ service: s, report: r }: { service: Any; report: Any }) => {
+                    const pct = reportCompletionPercent(r, s.rights || [], s.kind);
+                    const pctTone =
+                      pct === 100
+                        ? 'is-full'
+                        : pct >= 60
+                          ? 'is-mid'
+                          : pct > 0
+                            ? 'is-low'
+                            : 'is-zero';
+                    return (
                     <tr key={s.id}>
                       <td>{org.regions.find((x: Any) => x.id === s.division.regionId)?.name}</td>
                       <td>{s.name}</td>
@@ -1623,6 +1638,19 @@ export default function Home() {
                         <span className={'badge ' + (r?.status || '')}>
                           {r?.status || 'NON INTRODUIT'}
                         </span>
+                      </td>
+                      <td>
+                        <div className="vetra-completeness-cell" title={`Complétude : ${pct} %`}>
+                          <span className="vetra-completeness-track" aria-hidden="true">
+                            <span
+                              className={`vetra-completeness-fill ${pctTone}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </span>
+                          <span className={`vetra-completeness-pct ${pctTone}`}>
+                            {pct} %
+                          </span>
+                        </div>
                       </td>
                       <td>
                         {r ? <div className="flex flex-wrap items-center gap-1.5">
@@ -1703,7 +1731,8 @@ export default function Home() {
                         </div> : <span className="text-sm text-slate-500">En attente de saisie</span>}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -1,5 +1,10 @@
 import type { Kind, Role, Status, User } from '@prisma/client';
-import { buildDcspDemoReportData } from './demo-dcsp';
+import {
+  planDemoReport,
+  PRESENTATION_CHEF_ACCOUNTS,
+  PRESENTATION_SERVICES,
+  REGION_NAMES,
+} from './demo-presentation';
 import { defaultRubricsForKind, effectiveRubrics, rubricIds } from './forms';
 
 export const PREVIEW_PASSWORD = 'VetraPreview2026!';
@@ -68,87 +73,6 @@ type PreviewState = {
   seq: number;
 };
 
-const REGION_NAMES = [
-  'Rabat-Salé-Kénitra',
-  'Casablanca-Settat',
-  'Fès-Meknès',
-  'Tanger-Tétouan-Al Hoceïma',
-  'Marrakech-Safi',
-  'Béni Mellal-Khénifra',
-  'Drâa-Tafilalet',
-  'Souss-Massa',
-  'Guelmim-Oued Noun',
-  'Laâyoune-Sakia El Hamra',
-  'Dakhla-Oued Ed-Dahab',
-  'L’Oriental',
-] as const;
-
-const SERVICE_SEEDS: {
-  id: string;
-  name: string;
-  kind: Kind;
-  regionName: string;
-}[] = [
-  {
-    id: 'srv-dcsp-casa',
-    name: 'Service vétérinaire de la DCSP de Casablanca',
-    kind: 'FRONTALIER',
-    regionName: 'Casablanca-Settat',
-  },
-  {
-    id: 'srv-pref-casa',
-    name: 'Service vétérinaire préfectoral de Casablanca',
-    kind: 'PROVINCIAL',
-    regionName: 'Casablanca-Settat',
-  },
-  {
-    id: 'srv-el-jadida',
-    name: "Service vétérinaire d'El Jadida",
-    kind: 'PROVINCIAL',
-    regionName: 'Casablanca-Settat',
-  },
-  {
-    id: 'srv-mohammedia',
-    name: 'Service vétérinaire provincial de Mohammedia',
-    kind: 'PROVINCIAL',
-    regionName: 'Casablanca-Settat',
-  },
-  {
-    id: 'srv-kenitra',
-    name: 'Service vétérinaire provincial de Kénitra',
-    kind: 'PROVINCIAL',
-    regionName: 'Rabat-Salé-Kénitra',
-  },
-  {
-    id: 'srv-fes',
-    name: 'Service vétérinaire provincial de Fès',
-    kind: 'PROVINCIAL',
-    regionName: 'Fès-Meknès',
-  },
-  {
-    id: 'srv-tanger',
-    name: 'Service vétérinaire provincial de Tanger',
-    kind: 'PROVINCIAL',
-    regionName: 'Tanger-Tétouan-Al Hoceïma',
-  },
-  {
-    id: 'srv-nador',
-    name: 'Service vétérinaire provincial de Nador',
-    kind: 'PROVINCIAL',
-    regionName: 'L’Oriental',
-  },
-];
-
-const STATUS_CYCLE: Status[] = [
-  'VALIDE',
-  'VALIDE',
-  'SOUMIS',
-  'VALIDE',
-  'CORRIGE',
-  'REVOQUE',
-  'BROUILLON',
-];
-
 function createInitialState(): PreviewState {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -167,7 +91,7 @@ function createInitialState(): PreviewState {
   }));
   const divisionByRegionId = new Map(divisions.map((d) => [d.regionId, d]));
 
-  const services: PreviewService[] = SERVICE_SEEDS.map((seed) => {
+  const services: PreviewService[] = PRESENTATION_SERVICES.map((seed) => {
     const region = regionByName.get(seed.regionName)!;
     const division = divisionByRegionId.get(region.id)!;
     const defaultEnabled = new Set(defaultRubricsForKind(seed.kind));
@@ -187,6 +111,26 @@ function createInitialState(): PreviewState {
 
   const casaRegion = regionByName.get('Casablanca-Settat')!;
   const casaDivision = divisionByRegionId.get(casaRegion.id)!;
+
+  const regionalChefUsers: User[] = PRESENTATION_CHEF_ACCOUNTS.map((acc) => {
+    const region = regionByName.get(acc.regionName)!;
+    const division = divisionByRegionId.get(region.id)!;
+    return {
+      id: acc.id,
+      name: acc.name,
+      firstName: acc.firstName,
+      email: acc.email,
+      phone: acc.phone,
+      role: 'CHEF_SERVICE',
+      passwordHash: '',
+      verified: true,
+      regionId: region.id,
+      divisionId: division.id,
+      serviceId: acc.serviceId,
+      active: true,
+      createdAt: now,
+    };
+  });
 
   const users: User[] = [
     {
@@ -219,36 +163,7 @@ function createInitialState(): PreviewState {
       active: true,
       createdAt: now,
     },
-    {
-      id: 'usr-dcsp-casa',
-      name: 'El Idrissi',
-      firstName: 'Karim',
-      email: 'dcsp.casa@vetra.local',
-      phone: '0522 30 41 12',
-      role: 'CHEF_SERVICE',
-      passwordHash: '',
-      verified: true,
-      regionId: casaRegion.id,
-      divisionId: casaDivision.id,
-      serviceId: 'srv-dcsp-casa',
-      active: true,
-      createdAt: now,
-    },
-    {
-      id: 'usr-chef-casa',
-      name: 'Tazi',
-      firstName: 'Salma',
-      email: 'chef.casa@vetra.local',
-      phone: '0522 44 19 80',
-      role: 'CHEF_SERVICE',
-      passwordHash: '',
-      verified: true,
-      regionId: casaRegion.id,
-      divisionId: casaDivision.id,
-      serviceId: 'srv-pref-casa',
-      active: true,
-      createdAt: now,
-    },
+    ...regionalChefUsers,
     {
       id: 'usr-div-casa',
       name: 'Chraibi',
@@ -281,6 +196,18 @@ function createInitialState(): PreviewState {
     },
   ];
 
+  const userIdByServiceId = new Map(
+    regionalChefUsers
+      .filter((u) => u.serviceId)
+      .map((u) => [u.serviceId as string, u.id]),
+  );
+  const regionNameByDivisionId = new Map(
+    divisions.map((d) => [
+      d.id,
+      regions.find((r) => r.id === d.regionId)?.name ?? '',
+    ]),
+  );
+
   const reports: PreviewReport[] = [];
   const events: PreviewEvent[] = [];
   let seq = 1;
@@ -291,73 +218,50 @@ function createInitialState(): PreviewState {
   ];
 
   for (const [serviceIndex, service] of services.entries()) {
+    const regionName = regionNameByDivisionId.get(service.divisionId) ?? '';
+    const permittedRubrics = effectiveRubrics(service.rights, service.kind);
+    const authorId = userIdByServiceId.get(service.id) ?? 'usr-chef-casa';
+
     for (const [year, lastMonth] of yearRanges) {
       for (let month = 1; month <= lastMonth; month++) {
-        // Garder quelques absences sur les mois passés pour tester « non introduit »
-        if (
-          !(year === currentYear && month === currentMonth) &&
-          (serviceIndex + month + year) % 9 === 0
-        ) {
-          continue;
-        }
-        const status: Status =
-          year === currentYear && month === currentMonth
-            ? (['VALIDE', 'SOUMIS', 'BROUILLON', 'VALIDE', 'SOUMIS', 'REVOQUE', 'CORRIGE', 'VALIDE'][
-                serviceIndex % 8
-              ] as Status)
-            : year < currentYear
-              ? 'VALIDE'
-              : STATUS_CYCLE[(serviceIndex * 3 + month + year) % STATUS_CYCLE.length];
+        const planned = planDemoReport({
+          serviceName: service.name,
+          serviceIndex,
+          serviceKind: service.kind,
+          regionName,
+          year,
+          month,
+          currentYear,
+          currentMonth,
+          permittedRubrics,
+        });
+        if (!planned) continue;
 
-        const base = (serviceIndex + 1) * 100 + (year - (currentYear - 1)) * 25 + month * 4;
-        const serviceRubrics = effectiveRubrics(service.rights, service.kind);
-        const data: Record<string, unknown> =
-          service.kind === 'FRONTALIER'
-            ? buildDcspDemoReportData(serviceIndex, year, month)
-            : {
-                __demo: true,
-                __completed:
-                  status === 'BROUILLON'
-                    ? serviceRubrics.slice(0, 1)
-                    : [...serviceRubrics],
-                B9: base,
-                C9: base + 12,
-                D9: base + 4,
-                B10: base * 10,
-                C10: base * 3,
-                D10: base,
-                B11: (serviceIndex + month) % 8,
-                C11: (serviceIndex + month * 2) % 11,
-              };
-
-        const stamp = new Date(year, month - 1, Math.min(25, 8 + serviceIndex));
+        const stamp = new Date(
+          year,
+          month - 1,
+          Math.min(25, 6 + (serviceIndex % 18)),
+        );
         const id = `rep-${seq++}`;
         reports.push({
           id,
           serviceId: service.id,
           year,
           month,
-          status,
-          data,
-          reason:
-            status === 'REVOQUE'
-              ? 'Vérifier la cohérence des saisies partielles avant re-soumission.'
-              : null,
+          status: planned.status,
+          data: planned.data,
+          reason: planned.reason,
           createdAt: stamp,
           updatedAt: stamp,
         });
         events.push({
           id: `evt-${seq++}`,
-          userId:
-            service.kind === 'FRONTALIER' ? 'usr-dcsp-casa' : 'usr-chef-casa',
+          userId: authorId,
           reportId: id,
-          action: status === 'VALIDE' ? 'valider' : 'CREATION',
+          action: planned.status === 'VALIDE' ? 'valider' : 'CREATION',
           oldStatus: null,
-          newStatus: status,
-          reason:
-            status === 'REVOQUE'
-              ? 'Vérifier la cohérence des saisies partielles avant re-soumission.'
-              : null,
+          newStatus: planned.status,
+          reason: planned.reason,
           createdAt: stamp,
         });
       }
