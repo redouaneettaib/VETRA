@@ -17,11 +17,13 @@ export const REGION_NAMES = [
   'L’Oriental',
 ] as const;
 
+export type RegionName = (typeof REGION_NAMES)[number];
+
 export type PresentationServiceSeed = {
   id: string;
   name: string;
   kind: Kind;
-  regionName: (typeof REGION_NAMES)[number];
+  regionName: RegionName;
 };
 
 export type PresentationChefAccountSeed = {
@@ -31,15 +33,17 @@ export type PresentationChefAccountSeed = {
   email: string;
   phone: string;
   serviceId: string;
-  regionName: (typeof REGION_NAMES)[number];
+  regionName: RegionName;
 };
 
 /**
- * 15 services vétérinaires couvrant l'intégralité des 12 directions régionales
- * (les 8 services historiques + 7 services provinciaux/préfectoraux pour les
- * régions précédemment non représentées).
+ * 43 services vétérinaires répartis sur les 12 directions régionales (3 à 4
+ * services par région) afin de permettre de véritables pourcentages régionaux
+ * intermédiaires (25 %, 33 %, 50 %, 67 %, 75 %, 100 %) sur la carte du Maroc
+ * et dans le reporting officiel.
  */
 export const PRESENTATION_SERVICES: readonly PresentationServiceSeed[] = [
+  // Casablanca-Settat (4)
   {
     id: 'srv-dcsp-casa',
     name: 'Service vétérinaire de la DCSP de Casablanca',
@@ -64,6 +68,8 @@ export const PRESENTATION_SERVICES: readonly PresentationServiceSeed[] = [
     kind: 'PROVINCIAL',
     regionName: 'Casablanca-Settat',
   },
+
+  // Rabat-Salé-Kénitra (4)
   {
     id: 'srv-kenitra',
     name: 'Service vétérinaire provincial de Kénitra',
@@ -71,11 +77,51 @@ export const PRESENTATION_SERVICES: readonly PresentationServiceSeed[] = [
     regionName: 'Rabat-Salé-Kénitra',
   },
   {
+    id: 'srv-rabat',
+    name: 'Service vétérinaire préfectoral de Rabat',
+    kind: 'PROVINCIAL',
+    regionName: 'Rabat-Salé-Kénitra',
+  },
+  {
+    id: 'srv-sale',
+    name: 'Service vétérinaire préfectoral de Salé',
+    kind: 'PROVINCIAL',
+    regionName: 'Rabat-Salé-Kénitra',
+  },
+  {
+    id: 'srv-khemisset',
+    name: 'Service vétérinaire provincial de Khémisset',
+    kind: 'PROVINCIAL',
+    regionName: 'Rabat-Salé-Kénitra',
+  },
+
+  // Fès-Meknès (4)
+  {
     id: 'srv-fes',
     name: 'Service vétérinaire provincial de Fès',
     kind: 'PROVINCIAL',
     regionName: 'Fès-Meknès',
   },
+  {
+    id: 'srv-meknes',
+    name: 'Service vétérinaire préfectoral de Meknès',
+    kind: 'PROVINCIAL',
+    regionName: 'Fès-Meknès',
+  },
+  {
+    id: 'srv-taza',
+    name: 'Service vétérinaire provincial de Taza',
+    kind: 'PROVINCIAL',
+    regionName: 'Fès-Meknès',
+  },
+  {
+    id: 'srv-ifrane',
+    name: 'Service vétérinaire provincial d’Ifrane',
+    kind: 'PROVINCIAL',
+    regionName: 'Fès-Meknès',
+  },
+
+  // Tanger-Tétouan-Al Hoceïma (4)
   {
     id: 'srv-tanger',
     name: 'Service vétérinaire provincial de Tanger',
@@ -83,11 +129,25 @@ export const PRESENTATION_SERVICES: readonly PresentationServiceSeed[] = [
     regionName: 'Tanger-Tétouan-Al Hoceïma',
   },
   {
-    id: 'srv-nador',
-    name: 'Service vétérinaire provincial de Nador',
+    id: 'srv-tetouan',
+    name: 'Service vétérinaire provincial de Tétouan',
     kind: 'PROVINCIAL',
-    regionName: 'L’Oriental',
+    regionName: 'Tanger-Tétouan-Al Hoceïma',
   },
+  {
+    id: 'srv-larache',
+    name: 'Service vétérinaire provincial de Larache',
+    kind: 'PROVINCIAL',
+    regionName: 'Tanger-Tétouan-Al Hoceïma',
+  },
+  {
+    id: 'srv-alhoceima',
+    name: 'Service vétérinaire provincial d’Al Hoceïma',
+    kind: 'PROVINCIAL',
+    regionName: 'Tanger-Tétouan-Al Hoceïma',
+  },
+
+  // Marrakech-Safi (4)
   {
     id: 'srv-marrakech',
     name: 'Service vétérinaire préfectoral de Marrakech',
@@ -95,17 +155,25 @@ export const PRESENTATION_SERVICES: readonly PresentationServiceSeed[] = [
     regionName: 'Marrakech-Safi',
   },
   {
-    id: 'srv-benimellal',
-    name: 'Service vétérinaire provincial de Béni Mellal',
+    id: 'srv-safi',
+    name: 'Service vétérinaire provincial de Safi',
     kind: 'PROVINCIAL',
-    regionName: 'Béni Mellal-Khénifra',
+    regionName: 'Marrakech-Safi',
   },
   {
-    id: 'srv-errachidia',
-    name: 'Service vétérinaire provincial d’Errachidia',
+    id: 'srv-essaouira',
+    name: 'Service vétérinaire provincial d’Essaouira',
     kind: 'PROVINCIAL',
-    regionName: 'Drâa-Tafilalet',
+    regionName: 'Marrakech-Safi',
   },
+  {
+    id: 'srv-kelaa',
+    name: 'Service vétérinaire provincial d’El Kelâa des Sraghna',
+    kind: 'PROVINCIAL',
+    regionName: 'Marrakech-Safi',
+  },
+
+  // Souss-Massa (4)
   {
     id: 'srv-agadir',
     name: 'Service vétérinaire préfectoral d’Agadir',
@@ -113,11 +181,111 @@ export const PRESENTATION_SERVICES: readonly PresentationServiceSeed[] = [
     regionName: 'Souss-Massa',
   },
   {
+    id: 'srv-taroudant',
+    name: 'Service vétérinaire provincial de Taroudant',
+    kind: 'PROVINCIAL',
+    regionName: 'Souss-Massa',
+  },
+  {
+    id: 'srv-tiznit',
+    name: 'Service vétérinaire provincial de Tiznit',
+    kind: 'PROVINCIAL',
+    regionName: 'Souss-Massa',
+  },
+  {
+    id: 'srv-inezgane',
+    name: 'Service vétérinaire provincial d’Inezgane-Aït Melloul',
+    kind: 'PROVINCIAL',
+    regionName: 'Souss-Massa',
+  },
+
+  // L’Oriental (4)
+  {
+    id: 'srv-nador',
+    name: 'Service vétérinaire provincial de Nador',
+    kind: 'PROVINCIAL',
+    regionName: 'L’Oriental',
+  },
+  {
+    id: 'srv-oujda',
+    name: 'Service vétérinaire préfectoral d’Oujda-Angad',
+    kind: 'PROVINCIAL',
+    regionName: 'L’Oriental',
+  },
+  {
+    id: 'srv-berkane',
+    name: 'Service vétérinaire provincial de Berkane',
+    kind: 'PROVINCIAL',
+    regionName: 'L’Oriental',
+  },
+  {
+    id: 'srv-taourirt',
+    name: 'Service vétérinaire provincial de Taourirt',
+    kind: 'PROVINCIAL',
+    regionName: 'L’Oriental',
+  },
+
+  // Béni Mellal-Khénifra (3)
+  {
+    id: 'srv-benimellal',
+    name: 'Service vétérinaire provincial de Béni Mellal',
+    kind: 'PROVINCIAL',
+    regionName: 'Béni Mellal-Khénifra',
+  },
+  {
+    id: 'srv-khouribga',
+    name: 'Service vétérinaire provincial de Khouribga',
+    kind: 'PROVINCIAL',
+    regionName: 'Béni Mellal-Khénifra',
+  },
+  {
+    id: 'srv-khenifra',
+    name: 'Service vétérinaire provincial de Khénifra',
+    kind: 'PROVINCIAL',
+    regionName: 'Béni Mellal-Khénifra',
+  },
+
+  // Drâa-Tafilalet (3)
+  {
+    id: 'srv-errachidia',
+    name: 'Service vétérinaire provincial d’Errachidia',
+    kind: 'PROVINCIAL',
+    regionName: 'Drâa-Tafilalet',
+  },
+  {
+    id: 'srv-ouarzazate',
+    name: 'Service vétérinaire provincial d’Ouarzazate',
+    kind: 'PROVINCIAL',
+    regionName: 'Drâa-Tafilalet',
+  },
+  {
+    id: 'srv-midelt',
+    name: 'Service vétérinaire provincial de Midelt',
+    kind: 'PROVINCIAL',
+    regionName: 'Drâa-Tafilalet',
+  },
+
+  // Guelmim-Oued Noun (3)
+  {
     id: 'srv-guelmim',
     name: 'Service vétérinaire provincial de Guelmim',
     kind: 'PROVINCIAL',
     regionName: 'Guelmim-Oued Noun',
   },
+  {
+    id: 'srv-tantan',
+    name: 'Service vétérinaire provincial de Tan-Tan',
+    kind: 'PROVINCIAL',
+    regionName: 'Guelmim-Oued Noun',
+  },
+  {
+    id: 'srv-sidiifni',
+    name: 'Service vétérinaire provincial de Sidi Ifni',
+    kind: 'PROVINCIAL',
+    regionName: 'Guelmim-Oued Noun',
+  },
+
+  // Laâyoune-Sakia El Hamra (3)
   {
     id: 'srv-laayoune',
     name: 'Service vétérinaire provincial de Laâyoune',
@@ -125,8 +293,34 @@ export const PRESENTATION_SERVICES: readonly PresentationServiceSeed[] = [
     regionName: 'Laâyoune-Sakia El Hamra',
   },
   {
+    id: 'srv-boujdour',
+    name: 'Service vétérinaire provincial de Boujdour',
+    kind: 'PROVINCIAL',
+    regionName: 'Laâyoune-Sakia El Hamra',
+  },
+  {
+    id: 'srv-essemara',
+    name: 'Service vétérinaire provincial d’Es-Semara',
+    kind: 'PROVINCIAL',
+    regionName: 'Laâyoune-Sakia El Hamra',
+  },
+
+  // Dakhla-Oued Ed-Dahab (3)
+  {
     id: 'srv-dakhla',
     name: 'Service vétérinaire provincial de Dakhla',
+    kind: 'PROVINCIAL',
+    regionName: 'Dakhla-Oued Ed-Dahab',
+  },
+  {
+    id: 'srv-ouededdahab',
+    name: 'Service vétérinaire provincial d’Oued Ed-Dahab',
+    kind: 'PROVINCIAL',
+    regionName: 'Dakhla-Oued Ed-Dahab',
+  },
+  {
+    id: 'srv-aousserd',
+    name: 'Service vétérinaire provincial d’Aousserd',
     kind: 'PROVINCIAL',
     regionName: 'Dakhla-Oued Ed-Dahab',
   },
@@ -258,100 +452,49 @@ export const PRESENTATION_CHEF_ACCOUNTS: readonly PresentationChefAccountSeed[] 
   ];
 
 /**
- * Profils de complétude variés par service pour le mois courant (présentation DG).
- * `completedCount` indique le nombre de rubriques complétées sur les 19 rubriques
- * provinciales (ou 1/1 pour la DCSP frontalière).
+ * Cible de taux de saisie régional (ratio 0..1) pour chaque mois incomplet de
+ * l'année en cours (hors août=8 et octobre=10 qui sont toujours à 100 %).
+ * Chaque mois présente un dégradé réaliste couvrant les tranches 1–49 %,
+ * 50–74 %, 75–99 % et 100 % sur la carte du Maroc et dans le reporting.
  */
-type CurrentMonthProfile = {
-  status: Status;
-  completedCount: number;
+const REGION_INCOMPLETE_MONTH_RATIOS: Record<RegionName, readonly number[]> = {
+  // Indexés par mois incomplet : [Jan, Fév, Mar, Avr, Mai, Jun, Jul, Sep, Nov, Déc]
+  'Rabat-Salé-Kénitra': [0.75, 1.0, 0.75, 0.75, 1.0, 0.75, 1.0, 1.0, 0.75, 0.5],
+  'Casablanca-Settat': [1.0, 0.75, 0.75, 1.0, 0.75, 0.75, 0.75, 0.75, 0.75, 0.5],
+  'Tanger-Tétouan-Al Hoceïma': [0.5, 0.75, 0.75, 0.5, 0.75, 1.0, 0.75, 0.75, 0.75, 0.25],
+  'Souss-Massa': [0.75, 0.5, 0.75, 0.75, 0.75, 0.75, 0.5, 0.75, 1.0, 0.5],
+  'Fès-Meknès': [0.5, 0.5, 0.75, 0.5, 0.75, 0.5, 0.75, 0.5, 0.5, 0.25],
+  'Marrakech-Safi': [0.5, 0.75, 0.5, 0.5, 0.5, 0.75, 0.5, 0.5, 0.5, 0.25],
+  'L’Oriental': [0.25, 0.5, 0.5, 0.75, 0.5, 0.5, 0.75, 0.5, 0.25, 0.25],
+  'Béni Mellal-Khénifra': [0.67, 0.33, 0.67, 0.67, 0.33, 0.67, 0.67, 0.67, 0.67, 0.33],
+  'Laâyoune-Sakia El Hamra': [0.33, 0.67, 0.33, 0.67, 0.67, 0.33, 0.67, 0.67, 0.67, 0.33],
+  'Drâa-Tafilalet': [0.33, 0.33, 0.67, 0.33, 0.67, 0.33, 0.33, 0.33, 0.33, 0.33],
+  'Dakhla-Oued Ed-Dahab': [0.33, 0.67, 0.33, 0.33, 0.33, 0.67, 0.33, 0.33, 0.33, 0.33],
+  'Guelmim-Oued Noun': [0.33, 0.33, 0.33, 0.33, 0.67, 0.33, 0.33, 0.33, 0.33, 0.33],
 };
 
-const CURRENT_MONTH_PROFILE_BY_NAME: Record<string, CurrentMonthProfile> = {
-  'Service vétérinaire de la DCSP de Casablanca': {
-    status: 'VALIDE',
-    completedCount: 1,
-  },
-  'Service vétérinaire préfectoral de Casablanca': {
-    status: 'VALIDE',
-    completedCount: 19,
-  },
-  'Service vétérinaire provincial de Kénitra': {
-    status: 'VALIDE',
-    completedCount: 19,
-  },
-  'Service vétérinaire préfectoral d’Agadir': {
-    status: 'VALIDE',
-    completedCount: 19,
-  },
-  'Service vétérinaire provincial de Tanger': {
-    status: 'SOUMIS',
-    completedCount: 19,
-  },
-  'Service vétérinaire préfectoral de Marrakech': {
-    status: 'SOUMIS',
-    completedCount: 19,
-  },
-  'Service vétérinaire provincial de Fès': {
-    status: 'CORRIGE',
-    completedCount: 17, // 89 %
-  },
-  'Service vétérinaire provincial de Mohammedia': {
-    status: 'CORRIGE',
-    completedCount: 15, // 79 %
-  },
-  "Service vétérinaire d'El Jadida": {
-    status: 'BROUILLON',
-    completedCount: 14, // 74 %
-  },
-  'Service vétérinaire provincial de Nador': {
-    status: 'REVOQUE',
-    completedCount: 13, // 68 %
-  },
-  'Service vétérinaire provincial de Laâyoune': {
-    status: 'BROUILLON',
-    completedCount: 12, // 63 %
-  },
-  'Service vétérinaire provincial de Béni Mellal': {
-    status: 'REVOQUE',
-    completedCount: 11, // 58 %
-  },
-  'Service vétérinaire provincial d’Errachidia': {
-    status: 'BROUILLON',
-    completedCount: 9, // 47 %
-  },
-  'Service vétérinaire provincial de Dakhla': {
-    status: 'BROUILLON',
-    completedCount: 6, // 32 %
-  },
-  'Service vétérinaire provincial de Guelmim': {
-    status: 'BROUILLON',
-    completedCount: 4, // 21 %
-  },
+const INCOMPLETE_MONTH_SLOTS: Record<number, number> = {
+  1: 0,
+  2: 1,
+  3: 2,
+  4: 3,
+  5: 4,
+  6: 5,
+  7: 6,
+  9: 7,
+  11: 8,
+  12: 9,
 };
 
-/**
- * Mois (hors août=8 et octobre=10) volontairement en brouillon ou non transmis
- * sur l'année en cours afin d'obtenir une courbe et des taux annuels réalistes
- * et différenciés entre les 12 directions régionales.
- */
-const NON_TRANSMITTED_MONTHS_BY_SERVICE: Record<string, readonly number[]> = {
-  'Service vétérinaire de la DCSP de Casablanca': [],
-  'Service vétérinaire préfectoral de Casablanca': [2],
-  'Service vétérinaire provincial de Mohammedia': [1, 5],
-  "Service vétérinaire d'El Jadida": [3, 6, 9],
-  'Service vétérinaire provincial de Kénitra': [],
-  'Service vétérinaire préfectoral d’Agadir': [2],
-  'Service vétérinaire provincial de Tanger': [1, 4],
-  'Service vétérinaire provincial de Fès': [2, 5],
-  'Service vétérinaire préfectoral de Marrakech': [1, 3, 6],
-  'Service vétérinaire provincial de Nador': [2, 4, 7],
-  'Service vétérinaire provincial de Béni Mellal': [1, 3, 5, 7],
-  'Service vétérinaire provincial de Laâyoune': [1, 2, 4, 6, 9],
-  'Service vétérinaire provincial d’Errachidia': [1, 2, 3, 5, 7, 9],
-  'Service vétérinaire provincial de Dakhla': [1, 2, 3, 4, 6, 7],
-  'Service vétérinaire provincial de Guelmim': [1, 2, 3, 4, 5, 6, 9],
-};
+export function isFullReportingPeriod(
+  year: number,
+  month: number,
+  currentYear: number,
+): boolean {
+  // Toute l'année 2025 (et années antérieures) + Août et Octobre de l'année en cours = 100 %
+  if (year < currentYear) return true;
+  return month === 8 || month === 10;
+}
 
 export function isFullReportingMonth(month: number): boolean {
   return month === 8 || month === 10;
@@ -438,7 +581,7 @@ export function buildProvincialDemoReportData(
   }
 
   if (done.has('I.A.6')) {
-    data.B50 = (s + month) % 5 + 1;
+    data.B50 = ((s + month) % 5) + 1;
     data.C50 = (s + month * 2) % 4;
     data.D50 = (s + month) % 3;
     data.E50 = (s + month + 1) % 2;
@@ -457,7 +600,7 @@ export function buildProvincialDemoReportData(
   }
 
   if (done.has('I.B.2')) {
-    data.B82 = (s + month) % 4 + 1;
+    data.B82 = ((s + month) % 4) + 1;
     data.C82 = (s + month) % 3;
     data.D82 = (s + month + 1) % 3;
   }
@@ -569,16 +712,17 @@ export type PlannedDemoReport = {
 /**
  * Planifie de manière déterministe l'état, la complétude et les données d'un
  * rapport de démonstration pour un service donné et un mois donné :
- * - Août (8) et Octobre (10) : 100 % VALIDE et 100 % complété pour tous les
- *   services et toutes les régions.
- * - Mois courant : 1 rapport par service avec des taux de complétude et statuts
- *   variés (21 % à 100 %) pour la présentation à la Direction Générale.
- * - Autres mois de l'année en cours : taux de transmission différenciés par
- *   région (toutes les 12 régions représentées).
+ * - Toute l'année 2025 (12 mois) : 100 % VALIDE pour tous les services et régions.
+ * - Août (8) et Octobre (10) de l'année en cours : 100 % VALIDE pour tous les services et régions.
+ * - Autres mois de l'année en cours : pourcentages de complétude régionaux
+ *   intermédiaires et différenciés (25 %, 33 %, 50 %, 67 %, 75 %, 100 %) ainsi
+ *   que des complétudes de rubriques variées par service.
  */
 export function planDemoReport(input: {
   serviceName: string;
   serviceIndex: number;
+  serviceIndexInRegion: number;
+  regionServiceCount: number;
   serviceKind: Kind;
   regionName: string;
   year: number;
@@ -590,6 +734,8 @@ export function planDemoReport(input: {
   const {
     serviceName,
     serviceIndex,
+    serviceIndexInRegion,
+    regionServiceCount,
     serviceKind,
     regionName,
     year,
@@ -631,58 +777,66 @@ export function planDemoReport(input: {
     };
   };
 
-  // 1. Août (8) et Octobre (10) : 100 % validé et complet sur toutes les régions
-  if (isFullReportingMonth(month)) {
+  // 1. Année 2025 complète (tous les 12 mois à 100 %) + Août & Octobre 2026 à 100 %
+  if (isFullReportingPeriod(year, month, currentYear)) {
     return makePayload('VALIDE', fullRubrics.length);
   }
 
-  // 2. Année précédente : quasi-complet et validé pour des comparaisons N vs N-1 fiables
-  if (year < currentYear) {
-    if ((serviceIndex + month) % 13 === 0) return null;
-    return makePayload('VALIDE', fullRubrics.length);
-  }
+  // 2. Autres mois de l'année en cours : taux régional intermédiaire différencié (25 % à 100 %)
+  const slot = INCOMPLETE_MONTH_SLOTS[month] ?? 0;
+  const regionRatios =
+    REGION_INCOMPLETE_MONTH_RATIOS[regionName as RegionName];
+  const targetRatio = regionRatios
+    ? regionRatios[slot % regionRatios.length]
+    : 0.67;
 
-  // 3. Mois courant : chaque service dispose d'un rapport avec un % de complétude distinct
-  if (year === currentYear && month === currentMonth) {
-    const profile = CURRENT_MONTH_PROFILE_BY_NAME[serviceName];
-    if (profile) {
-      return makePayload(profile.status, profile.completedCount);
-    }
-    const fallbackCounts = [19, 17, 15, 13, 11, 8, 5];
-    const fallbackStatuses: Status[] = [
-      'VALIDE',
-      'SOUMIS',
-      'CORRIGE',
-      'REVOQUE',
-      'BROUILLON',
-      'BROUILLON',
-      'BROUILLON',
-    ];
-    const idx = serviceIndex % fallbackCounts.length;
-    return makePayload(fallbackStatuses[idx], fallbackCounts[idx]);
-  }
+  const count = Math.max(1, regionServiceCount);
+  const recordedTarget = Math.max(
+    1,
+    Math.min(count, Math.round(count * targetRatio)),
+  );
 
-  // 4. Autres mois de l'année en cours : taux de transmission différenciés par région
-  const nonTransmitted =
-    NON_TRANSMITTED_MONTHS_BY_SERVICE[serviceName] ??
-    ((serviceIndex + month) % 5 === 0 ? [month] : []);
-
-  if (nonTransmitted.includes(month)) {
-    // Alternance entre brouillon partiel et non introduit (tous deux non transmis)
-    if ((serviceIndex + month) % 2 === 0) {
-      const partialSteps = [4, 7, 10, 13, 15];
-      return makePayload(
-        'BROUILLON',
-        partialSteps[(serviceIndex + month) % partialSteps.length],
-      );
-    }
+  // Les services au-delà du quota régional du mois restent « NON INTRODUIT »
+  // afin que la carte « Progression de la saisie par région » affiche des
+  // pourcentages intermédiaires (25 %, 33 %, 50 %, 67 %, 75 %, 100 %).
+  if (serviceIndexInRegion >= recordedTarget) {
     return null;
   }
 
-  // Mois transmis (principalement VALIDE pour alimenter les courbes du reporting)
-  const monthStatus: Status =
-    month === currentMonth - 1 && serviceIndex % 5 === 2
-      ? 'SOUMIS'
-      : 'VALIDE';
-  return makePayload(monthStatus, fullRubrics.length);
+  // Parmi les services introduits, varier les statuts et les % de complétude par rubrique
+  const isCurrent = year === currentYear && month === currentMonth;
+  if (isDcsp) {
+    return makePayload(isCurrent ? 'VALIDE' : 'VALIDE', fullRubrics.length);
+  }
+
+  if (isCurrent) {
+    // Mois courant : belle diversité de statuts & % de complétude (32 % à 100 %)
+    const currentProfiles: { status: Status; rubrics: number }[] = [
+      { status: 'VALIDE', rubrics: 19 },
+      { status: 'SOUMIS', rubrics: 19 },
+      { status: 'CORRIGE', rubrics: 17 }, // 89 %
+      { status: 'BROUILLON', rubrics: 14 }, // 74 %
+      { status: 'REVOQUE', rubrics: 12 }, // 63 %
+      { status: 'BROUILLON', rubrics: 9 }, // 47 %
+      { status: 'VALIDE', rubrics: 19 },
+      { status: 'BROUILLON', rubrics: 6 }, // 32 %
+    ];
+    const profile =
+      currentProfiles[(serviceIndex + serviceIndexInRegion) % currentProfiles.length];
+    return makePayload(profile.status, profile.rubrics);
+  }
+
+  // Mois passés incomplets (Jan–Jul, Sep) : majoritairement VALIDE/SOUMIS/CORRIGE
+  // (tous transmis dans le reporting) + quelques brouillons partiels
+  const pastProfiles: { status: Status; rubrics: number }[] = [
+    { status: 'VALIDE', rubrics: 19 },
+    { status: 'VALIDE', rubrics: 19 },
+    { status: 'SOUMIS', rubrics: 19 },
+    { status: 'CORRIGE', rubrics: 16 }, // 84 %
+    { status: 'VALIDE', rubrics: 19 },
+    { status: 'REVOQUE', rubrics: 13 }, // 68 %
+  ];
+  const profile =
+    pastProfiles[(serviceIndex + month) % pastProfiles.length];
+  return makePayload(profile.status, profile.rubrics);
 }

@@ -217,8 +217,18 @@ function createInitialState(): PreviewState {
     [currentYear, Math.max(currentMonth, 10)],
   ];
 
+  const servicesByRegion = new Map<string, PreviewService[]>();
+  for (const service of services) {
+    const regionName = regionNameByDivisionId.get(service.divisionId) ?? '';
+    const list = servicesByRegion.get(regionName) ?? [];
+    list.push(service);
+    servicesByRegion.set(regionName, list);
+  }
+
   for (const [serviceIndex, service] of services.entries()) {
     const regionName = regionNameByDivisionId.get(service.divisionId) ?? '';
+    const regionList = servicesByRegion.get(regionName) ?? [service];
+    const serviceIndexInRegion = regionList.findIndex((s) => s.id === service.id);
     const permittedRubrics = effectiveRubrics(service.rights, service.kind);
     const authorId = userIdByServiceId.get(service.id) ?? 'usr-chef-casa';
 
@@ -227,6 +237,8 @@ function createInitialState(): PreviewState {
         const planned = planDemoReport({
           serviceName: service.name,
           serviceIndex,
+          serviceIndexInRegion: Math.max(0, serviceIndexInRegion),
+          regionServiceCount: regionList.length,
           serviceKind: service.kind,
           regionName,
           year,

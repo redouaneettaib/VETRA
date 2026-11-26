@@ -1,19 +1,19 @@
 /**
  * Jeu de données de présentation Direction Générale pour VETRA.
  *
- * - Initialise les 12 régions, 12 divisions, et au moins un service vétérinaire
- *   dans chacune des 12 directions régionales (15 services au total).
+ * - Initialise les 12 régions, 12 divisions et 43 services vétérinaires (3 à 4
+ *   services par direction régionale) pour obtenir des pourcentages régionaux
+ *   intermédiaires réalistes (25 %, 33 %, 50 %, 67 %, 75 %, 100 %) sur la carte
+ *   du Maroc et dans le reporting officiel.
  * - Crée un compte fictif « Chef de service » pour un service vétérinaire de
  *   chacune des 12 régions (mot de passe lu depuis DEMO_USER_PASSWORD ou
  *   SEED_ADMIN_PASSWORD, jamais codé en dur).
- * - Complète à 100 % (VALIDE) les mois d'août et d'octobre dans le reporting
- *   pour l'ensemble des services actifs (y compris les services déjà présents).
- * - Introduit des rapports avec des pourcentages de complétude différenciés
- *   par service et par région sur les autres mois.
+ * - Complète à 100 % (VALIDE) tous les 12 mois de 2025 ainsi que les mois
+ *   d'août et d'octobre de l'année en cours pour tous les services actifs.
+ * - Génère des taux régionaux intermédiaires et variés sur les autres mois de
+ *   l'année en cours.
  *
- * Sécurité : ne remplace jamais un rapport réel (non marqué __demo).
- * Utiliser DEMO_OVERWRITE=true pour régénérer les rapports __demo existants,
- * ou DEMO_RESET=true / DEMO_RESET_ALL=true pour nettoyer d'abord les __demo.
+ * Sécurité : ne remplace et ne supprime jamais un rapport réel (non marqué __demo).
  */
 import { Prisma, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
@@ -22,7 +22,7 @@ import {
   needsDcspDemoNormalization,
 } from '../src/lib/demo-dcsp';
 import {
-  isFullReportingMonth,
+  isFullReportingPeriod,
   planDemoReport,
   PRESENTATION_CHEF_ACCOUNTS,
   PRESENTATION_SERVICES,
@@ -38,6 +38,15 @@ const db = new PrismaClient();
 const overwrite = process.env.DEMO_OVERWRITE === 'true';
 const resetDemo = process.env.DEMO_RESET === 'true';
 const resetAllDemo = process.env.DEMO_RESET_ALL === 'true';
+
+function isDemoRecord(data: unknown): boolean {
+  return (
+    Boolean(data) &&
+    typeof data === 'object' &&
+    !Array.isArray(data) &&
+    (data as Record<string, unknown>).__demo === true
+  );
+}
 
 async function main() {
   const now = new Date();
@@ -62,7 +71,7 @@ async function main() {
     divisionByRegionId.set(region.id, division);
   }
 
-  // 2. S'assurer qu'un service vétérinaire représentatif existe dans chacune des 12 régions
+  // 2. S'assurer que les 43 services vétérinaires (3 à 4 par région) existent
   let servicesCreated = 0;
   const serviceIdBySeedId = new Map<string, string>();
   for (const seed of PRESENTATION_SERVICES) {
@@ -140,7 +149,7 @@ async function main() {
     );
   }
 
-  // 4. Charger tous les services présents en base afin que les mois d'août et octobre atteignent 100 %
+  // 4. Charger tous les services présents en base et regrouper par région
   const allServices = await db.service.findMany({
     include: { rights: true, division: { include: { region: true } } },
     orderBy: [{ division: { region: { name: 'asc' } } }, { name: 'asc' }],
@@ -157,71 +166,105 @@ async function main() {
       select: { id: true, data: true },
     });
     const ids = oldDemoReports
-      .filter(
-        (report) =>
-          report.data &&
-          typeof report.data === 'object' &&
-          !Array.isArray(report.data) &&
-          (report.data as Record<string, unknown>).__demo === true,
-      )
+      .filter((report) => isDemoRecord(report.data))
       .map((report) => report.id);
     if (ids.length) await db.report.deleteMany({ where: { id: { in: ids } } });
     console.log(`${ids.length} ancienne(s) donnée(s) fictive(s) supprimée(s).`);
   }
 
-  let created = 0;
-  let updated = 0;
-  let skipped = 0;
+  // Précharger tous les rapports existants sur 2025..currentYear en une seule requête
+  const existingReports = await db.report.findMany({
+    where: {
+      serviceId: { in: allServices.map((s) => s.id) },
+      year: { gte: currentYear - 1, lte: currentYear },
+    },
+    select: {
+      id: true,
+      serviceId: true,
+      year: true,
+      month: true,
+      status: true,
+      data: true,
+    },
+  });
+  const existingMap = new Map(
+    existingReports.map((r) => [`${r.serviceId}:${r.year}:${r.month}`, r]),
+  );
+
+  // Regrouper les services par région pour calculer l'index dans chaque région
+  const servicesByRegion = new Map<string, typeof allServices>();
+  for (const service of allServices) {
+    const regionName = service.division.region.name;
+    const list = servicesByRegion.get(regionName) ?? [];
+    list.push(service);
+    servicesByRegion.set(regionName, list);
+  }
+
   const yearRanges: [number, number][] = [
     [currentYear - 1, 12],
     [currentYear, Math.max(currentMonth, 10)],
   ];
 
+  const toCreate: Prisma.ReportCreateManyInput[] = [];
+  const toUpdate: {
+    id: string;
+    data: Prisma.ReportUpdateInput;
+  }[] = [];
+  const toDeleteDemoIds: string[] = [];
+  let skipped = 0;
+
   for (const [serviceIndex, service] of allServices.entries()) {
     const dcsp = isDcspService(service);
+    const regionName = service.division.region.name;
+    const regionList = servicesByRegion.get(regionName) ?? [service];
+    const serviceIndexInRegion = regionList.findIndex(
+      (s) => s.id === service.id,
+    );
     const permittedRubrics = effectiveRubrics(service.rights, service.kind);
 
     for (const [year, lastMonth] of yearRanges) {
       for (let month = 1; month <= lastMonth; month++) {
+        const key = `${service.id}:${year}:${month}`;
+        const existing = existingMap.get(key);
+        const isDemo = existing ? isDemoRecord(existing.data) : false;
+
         const planned = planDemoReport({
           serviceName: service.name,
           serviceIndex,
+          serviceIndexInRegion: Math.max(0, serviceIndexInRegion),
+          regionServiceCount: regionList.length,
           serviceKind: service.kind,
-          regionName: service.division.region.name,
+          regionName,
           year,
           month,
           currentYear,
           currentMonth,
           permittedRubrics,
         });
+
         if (!planned) {
-          skipped++;
+          // Si overwrite est actif et qu'un ancien rapport __demo existe sur un mois
+          // désormais volontairement non introduit, on le retire (jamais un rapport réel).
+          if (existing && isDemo && overwrite) {
+            toDeleteDemoIds.push(existing.id);
+          } else {
+            skipped++;
+          }
           continue;
         }
 
-        const existing = await db.report.findUnique({
-          where: {
-            serviceId_year_month: { serviceId: service.id, year, month },
-          },
-          select: { id: true, status: true, data: true },
-        });
-        const isDemo =
-          existing?.data &&
-          typeof existing.data === 'object' &&
-          !Array.isArray(existing.data) &&
-          (existing.data as Record<string, unknown>).__demo === true;
         const fixNonCompliantDcsp =
           dcsp && existing ? needsDcspDemoNormalization(existing.data) : false;
-        const completeAugustOrOctober =
+        const completeFullPeriod =
           existing &&
           isDemo &&
-          isFullReportingMonth(month) &&
+          isFullReportingPeriod(year, month, currentYear) &&
           existing.status !== 'VALIDE';
 
         if (
           existing &&
           !fixNonCompliantDcsp &&
-          !completeAugustOrOctober &&
+          !completeFullPeriod &&
           (!overwrite || !isDemo)
         ) {
           skipped++;
@@ -230,8 +273,8 @@ async function main() {
 
         const payload = planned.data as Prisma.InputJsonValue;
         if (existing) {
-          await db.report.update({
-            where: { id: existing.id },
+          toUpdate.push({
+            id: existing.id,
             data: fixNonCompliantDcsp
               ? { data: payload }
               : {
@@ -240,29 +283,43 @@ async function main() {
                   reason: planned.reason,
                 },
           });
-          updated++;
         } else {
-          await db.report.create({
-            data: {
-              serviceId: service.id,
-              year,
-              month,
-              status: planned.status,
-              data: payload,
-              reason: planned.reason,
-            },
+          toCreate.push({
+            serviceId: service.id,
+            year,
+            month,
+            status: planned.status,
+            data: payload,
+            reason: planned.reason,
           });
-          created++;
         }
       }
     }
   }
 
+  if (toDeleteDemoIds.length) {
+    await db.report.deleteMany({ where: { id: { in: toDeleteDemoIds } } });
+  }
+  if (toCreate.length) {
+    await db.report.createMany({ data: toCreate, skipDuplicates: true });
+  }
+  const chunkSize = 50;
+  for (let i = 0; i < toUpdate.length; i += chunkSize) {
+    const batch = toUpdate.slice(i, i + chunkSize);
+    await db.$transaction(
+      batch.map((item) =>
+        db.report.update({ where: { id: item.id }, data: item.data }),
+      ),
+    );
+  }
+
   console.log(
     `Présentation DG initialisée : ${servicesCreated} service(s) ajouté(s), ` +
       `${usersCreated} compte(s) Chef de service créé(s) (${usersSkipped} existant(s)), ` +
-      `${created} rapport(s) créé(s), ${updated} mis à jour, ${skipped} conservé(s)/absent(s). ` +
-      `Couverture : ${allServices.length} services sur ${regionCount}/12 régions — Août et Octobre complétés à 100 % (VALIDE).`,
+      `${toCreate.length} rapport(s) créé(s), ${toUpdate.length} mis à jour, ` +
+      `${toDeleteDemoIds.length} ancien(s) démo retiré(s), ${skipped} conservé(s)/absent(s). ` +
+      `Couverture : ${allServices.length} services sur ${regionCount}/12 régions — ` +
+      `2025 complet à 100 % (12 mois), Août et Octobre ${currentYear} à 100 %, autres mois à taux régionaux intermédiaires.`,
   );
 }
 
